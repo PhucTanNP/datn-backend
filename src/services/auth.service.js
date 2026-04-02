@@ -1,68 +1,113 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const prisma = require('../config/database');
+const supabase = require('../config/supabase');
 
 class AuthService {
   async register({ email, password, fullName, phone, address }) {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const { data: existingUser, error: findError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (findError && findError.code !== 'PGRST116') throw findError;
     if (existingUser) {
       throw Object.assign(new Error('Email already registered'), { statusCode: 409 });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({
-      data: { email, passwordHash, fullName, phone, address },
-      select: {
-        id: true, email: true, fullName: true, phone: true,
-        role: true, createdAt: true,
-      },
-    });
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({
+        email,
+        password_hash: passwordHash,
+        full_name: fullName,
+        phone,
+        address
+      })
+      .select('id, email, full_name, phone, role, created_at')
+      .single();
+
+    if (error) throw error;
 
     const tokens = await this.generateTokens(user.id);
-    return { user, ...tokens };
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.full_name,
+        phone: user.phone,
+        role: user.role,
+        createdAt: user.created_at
+      },
+      ...tokens
+    };
   }
 
   async login({ email, password }) {
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !user.isActive) {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!user || !user.is_active) {
       throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
     }
 
-    const validPassword = await bcrypt.compare(password, user.passwordHash);
+    const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
       throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
     }
 
     const tokens = await this.generateTokens(user.id);
-    const { passwordHash, ...userData } = user;
-    return { user: userData, ...tokens };
+    const { password_hash, ...userData } = user;
+    return {
+      user: {
+        id: userData.id,
+        email: userData.email,
+        fullName: userData.full_name,
+        phone: userData.phone,
+        role: userData.role,
+        createdAt: userData.created_at
+      },
+      ...tokens
+    };
   }
 
   async refreshToken(refreshTokenStr) {
-    const tokenRecord = await prisma.refreshToken.findUnique({
-      where: { token: refreshTokenStr },
-    });
+    const { data: tokenRecord, error } = await supabase
+      .from('refresh_tokens')
+      .select('*')
+      .eq('token', refreshTokenStr)
+      .single();
 
-    if (!tokenRecord || tokenRecord.revoked || tokenRecord.expiresAt < new Date()) {
+    if (error && error.code !== 'PGRST116') throw error;
+    if (!tokenRecord || tokenRecord.revoked || new Date(tokenRecord.expires_at) < new Date()) {
       throw Object.assign(new Error('Invalid or expired refresh token'), { statusCode: 401 });
     }
 
     // Revoke old token
-    await prisma.refreshToken.update({
-      where: { id: tokenRecord.id },
-      data: { revoked: true },
-    });
+    const { error: updateError } = await supabase
+      .from('refresh_tokens')
+      .update({ revoked: true })
+      .eq('id', tokenRecord.id);
 
-    const tokens = await this.generateTokens(tokenRecord.userId);
+    if (updateError) throw updateError;
+
+    const tokens = await this.generateTokens(tokenRecord.user_id);
     return tokens;
   }
 
   async logout(refreshTokenStr) {
-    await prisma.refreshToken.updateMany({
-      where: { token: refreshTokenStr },
-      data: { revoked: true },
-    });
+    const { error } = await supabase
+      .from('refresh_tokens')
+      .update({ revoked: true })
+      .eq('token', refreshTokenStr);
+
+    if (error) throw error;
   }
 
   async generateTokens(userId) {
@@ -76,13 +121,15 @@ class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
-    await prisma.refreshToken.create({
-      data: {
-        userId,
+    const { error } = await supabase
+      .from('refresh_tokens')
+      .insert({
+        user_id: userId,
         token: refreshToken,
-        expiresAt,
-      },
-    });
+        expires_at: expiresAt
+      });
+
+    if (error) throw error;
 
     return { accessToken, refreshToken };
   }

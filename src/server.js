@@ -3,7 +3,7 @@ require('dotenv').config();
 const app = require('./app');
 const supabase = require('./config/database');
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8000;
 
 async function main() {
   try {
