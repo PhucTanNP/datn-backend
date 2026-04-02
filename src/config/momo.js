@@ -1,3 +1,5 @@
+// Commented out MoMo config - not needed yet
+/*
 const MOMO_CONFIG = {
   partnerCode: process.env.MOMO_PARTNER_CODE,
   accessKey:   process.env.MOMO_ACCESS_KEY,
@@ -8,3 +10,4 @@ const MOMO_CONFIG = {
 };
 
 module.exports = MOMO_CONFIG;
+*/

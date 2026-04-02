@@ -1,3 +1,5 @@
+// Commented out MoMo service - not needed yet
+/*
 const crypto = require('crypto');
 const axios  = require('axios');
 const MOMO_CONFIG = require('../config/momo');
@@ -66,3 +68,4 @@ class MoMoService {
 }
 
 module.exports = new MoMoService();
+*/

@@ -1,5 +1,7 @@
-const momoService = require('../../services/momo.service');
-const prisma = require('../../config/database');
+// Commented out MoMo imports and methods - not needed yet
+/*
+const momoService = require('../../../services/momo.service');
+const prisma = require('../../../config/database');
 const ApiResponse = require('../../utils/response');
 
 exports.createMoMoPayment = async (req, res, next) => {
@@ -47,7 +49,10 @@ exports.createMoMoPayment = async (req, res, next) => {
     next(error);
   }
 };
+*/
 
+// Commented out momoIPN - not needed yet
+/*
 exports.momoIPN = async (req, res, next) => {
   try {
     const isValid = momoService.verifyIPN(req.body);
@@ -90,3 +95,4 @@ exports.momoIPN = async (req, res, next) => {
     next(error);
   }
 };
+*/

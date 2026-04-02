@@ -1,6 +1,6 @@
-const productService = require('../../services/product.service');
-const cloudinaryService = require('../../services/cloudinary.service');
-const ApiResponse = require('../../utils/response');
+const productService = require('../../../services/product.service');
+const cloudinaryService = require('../../../services/cloudinary.service');
+const ApiResponse = require('../../../utils/response');
 
 exports.getAll = async (req, res, next) => {
   try {

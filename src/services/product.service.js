@@ -1,101 +1,135 @@
-const prisma = require('../config/database');
+const supabase = require('../config/database');
 const { getPagination, getPaginationMeta } = require('../utils/pagination');
 
 class ProductService {
   async getAll(query) {
     const { page, limit, skip } = getPagination(query);
 
-    const where = { isActive: true };
+    let supabaseQuery = supabase
+      .from('products')
+      .select(`
+        *,
+        category:categories(id, name, slug),
+        images:product_images(*)
+      `, { count: 'exact' })
+      .eq('is_active', true)
+      .range(skip, skip + limit - 1);
 
     // Filters
     if (query.category) {
-      where.category = { slug: query.category };
+      supabaseQuery = supabaseQuery.eq('categories.slug', query.category);
     }
     if (query.tireType) {
-      where.tireType = query.tireType;
+      supabaseQuery = supabaseQuery.ilike('tire_type', `%${query.tireType}%`);
     }
     if (query.size) {
-      where.size = { contains: query.size, mode: 'insensitive' };
+      supabaseQuery = supabaseQuery.ilike('size', `%${query.size}%`);
     }
-    if (query.minPrice || query.maxPrice) {
-      where.price = {};
-      if (query.minPrice) where.price.gte = parseFloat(query.minPrice);
-      if (query.maxPrice) where.price.lte = parseFloat(query.maxPrice);
+    if (query.minPrice) {
+      supabaseQuery = supabaseQuery.gte('price', parseFloat(query.minPrice));
+    }
+    if (query.maxPrice) {
+      supabaseQuery = supabaseQuery.lte('price', parseFloat(query.maxPrice));
     }
     if (query.search) {
-      where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { sku: { contains: query.search, mode: 'insensitive' } },
-        { description: { contains: query.search, mode: 'insensitive' } },
-      ];
+      supabaseQuery = supabaseQuery.or(`name.ilike.%${query.search}%,sku.ilike.%${query.search}%,description.ilike.%${query.search}%`);
     }
 
     // Sort
-    let orderBy = { createdAt: 'desc' };
+    let orderBy = 'created_at.desc';
     if (query.sort) {
       const [field, direction] = query.sort.split(':');
-      const allowedFields = ['price', 'name', 'createdAt'];
+      const allowedFields = ['price', 'name', 'created_at'];
       if (allowedFields.includes(field)) {
-        orderBy = { [field]: direction === 'asc' ? 'asc' : 'desc' };
+        orderBy = `${field}.${direction === 'asc' ? 'asc' : 'desc'}`;
       }
     }
+    supabaseQuery = supabaseQuery.order(orderBy);
 
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        include: {
-          category: { select: { id: true, name: true, slug: true } },
-          images: { orderBy: { sortOrder: 'asc' }, take: 3 },
-        },
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      prisma.product.count({ where }),
-    ]);
+    const { data: products, error, count } = await supabaseQuery;
+
+    if (error) throw error;
+
+    // Process images (take first 3, sorted by sort_order)
+    products.forEach(product => {
+      if (product.images) {
+        product.images = product.images
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .slice(0, 3);
+      }
+    });
 
     return {
       products,
-      pagination: getPaginationMeta(total, page, limit),
+      pagination: getPaginationMeta(count, page, limit),
     };
   }
 
   async getBySlug(slug) {
-    const product = await prisma.product.findUnique({
-      where: { slug },
-      include: {
-        category: true,
-        images: { orderBy: { sortOrder: 'asc' } },
-      },
-    });
+    const { data: product, error } = await supabase
+      .from('products')
+      .select(`
+        *,
+        category:categories(*),
+        images:product_images(*)
+      `)
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .single();
 
-    if (!product || !product.isActive) {
+    if (error || !product) {
       throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+    }
+
+    // Sort images
+    if (product.images) {
+      product.images = product.images.sort((a, b) => a.sort_order - b.sort_order);
     }
 
     return product;
   }
 
   async create(data) {
-    return prisma.product.create({
-      data,
-      include: { category: true, images: true },
-    });
+    const { data: product, error } = await supabase
+      .from('products')
+      .insert(data)
+      .select(`
+        *,
+        category:categories(*),
+        images:product_images(*)
+      `)
+      .single();
+
+    if (error) throw error;
+    return product;
   }
 
   async update(id, data) {
-    return prisma.product.update({
-      where: { id },
-      data: { ...data, updatedAt: new Date() },
-      include: { category: true, images: true },
-    });
+    const { data: product, error } = await supabase
+      .from('products')
+      .update({ ...data, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select(`
+        *,
+        category:categories(*),
+        images:product_images(*)
+      `)
+      .single();
+
+    if (error) throw error;
+    return product;
   }
 
   async delete(id) {
-    return prisma.product.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    const { data, error } = await supabase
+      .from('products')
+      .update({ is_active: false })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
   async addImages(productId, images) {

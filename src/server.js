@@ -1,15 +1,16 @@
 require('dotenv').config();
 
 const app = require('./app');
-const prisma = require('./config/database');
+const supabase = require('./config/database');
 
 const PORT = process.env.PORT || 3001;
 
 async function main() {
   try {
-    // Test database connection
-    await prisma.$connect();
-    console.log('✅ Database connected');
+    // Test Supabase connection
+    const { error } = await supabase.from('users').select('count', { count: 'exact', head: true });
+    if (error) throw error;
+    console.log('✅ Supabase connected');
 
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
