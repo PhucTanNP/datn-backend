@@ -3,10 +3,10 @@ const router = express.Router();
 const paymentController = require('../controllers/payment.controller');
 const authMiddleware = require('../../../middlewares/auth.middleware');
 
-// POST /api/v1/payments/momo
+// Commented out MoMo routes - not needed yet
+/*
 router.post('/momo', authMiddleware, paymentController.createMoMoPayment);
-
-// POST /api/v1/payments/momo/ipn (webhook - no auth)
 router.post('/momo/ipn', paymentController.momoIPN);
+*/
 
 module.exports = router;

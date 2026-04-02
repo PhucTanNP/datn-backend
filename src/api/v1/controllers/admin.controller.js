@@ -1,6 +1,6 @@
-const prisma = require('../../config/database');
-const ApiResponse = require('../../utils/response');
-const { getPagination, getPaginationMeta } = require('../../utils/pagination');
+const prisma = require('../../../config/database');
+const ApiResponse = require('../../../utils/response');
+const { getPagination, getPaginationMeta } = require('../../../utils/pagination');
 
 exports.getDashboard = async (req, res, next) => {
   try {

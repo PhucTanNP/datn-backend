@@ -1,6 +1,6 @@
-const aiService = require('../../services/ai.service');
-const prisma = require('../../config/database');
-const ApiResponse = require('../../utils/response');
+const aiService = require('../../../services/ai.service');
+const prisma = require('../../../config/database');
+const ApiResponse = require('../../../utils/response');
 
 exports.inspect = async (req, res, next) => {
   try {
