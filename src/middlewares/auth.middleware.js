@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const prisma = require('../config/database');
+const supabase = require('../config/supabase');
 const ApiResponse = require('../utils/response');
 
 const authMiddleware = async (req, res, next) => {
@@ -12,22 +12,23 @@ const authMiddleware = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        isActive: true,
-      },
-    });
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, full_name, phone, role, is_active')
+      .eq('id', decoded.userId)
+      .single();
 
-    if (!user || !user.isActive) {
+    if (error || !user || !user.is_active) {
       return ApiResponse.error(res, 'User not found or inactive', 401);
     }
 
-    req.user = user;
+    req.user = {
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      phone: user.phone,
+      role: user.role
+    };
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
