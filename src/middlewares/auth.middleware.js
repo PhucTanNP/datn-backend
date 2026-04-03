@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const supabase = require('../config/database');
+const supabase = require('../config/supabase');
 const ApiResponse = require('../utils/response');
 
 const authMiddleware = async (req, res, next) => {
@@ -14,7 +14,7 @@ const authMiddleware = async (req, res, next) => {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, full_name, role, is_active')
+      .select('id, email, full_name, phone, role, is_active')
       .eq('id', decoded.userId)
       .single();
 
@@ -28,6 +28,8 @@ const authMiddleware = async (req, res, next) => {
       fullName: user.full_name,
       role: user.role,
       isActive: user.is_active,
+      phone: user.phone,
+      role: user.role
     };
     next();
   } catch (error) {
