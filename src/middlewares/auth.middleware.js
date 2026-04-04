@@ -31,6 +31,7 @@ const authMiddleware = async (req, res, next) => {
       phone: user.phone,
       role: user.role,
       isActive: user.is_active,
+      phone: user.phone,
     };
     next();
   } catch (error) {
