@@ -46,13 +46,15 @@ class AuthService {
   }
 
   async login({ email, password }) {
-    const { data: user, error } = await supabase
+    const { data: users, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
-      .single();
+      .limit(1);
 
-    if (error && error.code !== 'PGRST116') throw error;
+    if (error) throw error;
+
+    const user = users?.[0];
     if (!user || !user.is_active) {
       throw Object.assign(new Error('Invalid email or password'), { statusCode: 401 });
     }
