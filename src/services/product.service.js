@@ -54,7 +54,7 @@ class ProductService {
     products.forEach(product => {
       if (product.images) {
         product.images = product.images
-          .sort((a, b) => a.sort_order - b.sort_order)
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
           .slice(0, 3);
       }
     });
@@ -63,6 +63,30 @@ class ProductService {
       products,
       pagination: getPaginationMeta(count, page, limit),
     };
+  }
+
+  async getById(id) {
+    const { data: product, error } = await supabase
+      .from('products')
+      .select(`
+        *,
+        category:categories(*),
+        images:product_images(*)
+      `)
+      .eq('id', id)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !product) {
+      throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+    }
+
+    // Sort images
+    if (product.images) {
+      product.images = product.images.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    }
+
+    return product;
   }
 
   async getBySlug(slug) {
@@ -83,7 +107,7 @@ class ProductService {
 
     // Sort images
     if (product.images) {
-      product.images = product.images.sort((a, b) => a.sort_order - b.sort_order);
+      product.images = product.images.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     }
 
     return product;
@@ -133,20 +157,33 @@ class ProductService {
   }
 
   async addImages(productId, images) {
-    return prisma.productImage.createMany({
-      data: images.map((img) => ({
-        productId,
-        cloudinaryId: img.cloudinaryId,
+    const { data, error } = await supabase
+      .from('product_images')
+      .insert(images.map((img) => ({
+        product_id: productId,
+        cloudinary_id: img.cloudinaryId,
         url: img.url,
-        altText: img.altText,
-        isPrimary: img.isPrimary || false,
-        sortOrder: img.sortOrder || 0,
-      })),
-    });
+        alt_text: img.altText,
+        is_primary: img.isPrimary || false,
+        sort_order: img.sortOrder || 0,
+      })));
+
+    if (error) {
+      throw new Error(`Failed to add images: ${error.message}`);
+    }
+
+    return data;
   }
 
   async deleteImage(imageId) {
-    return prisma.productImage.delete({ where: { id: imageId } });
+    const { error } = await supabase
+      .from('product_images')
+      .delete()
+      .eq('id', imageId);
+
+    if (error) {
+      throw new Error(`Failed to delete image: ${error.message}`);
+    }
   }
 }
 

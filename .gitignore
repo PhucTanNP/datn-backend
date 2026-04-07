@@ -48,3 +48,5 @@ coverage/
 Thumbs.db
 
 /backup/
+images/
+supabase_setup.sql

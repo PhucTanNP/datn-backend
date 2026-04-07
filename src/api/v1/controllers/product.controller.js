@@ -98,8 +98,9 @@ exports.uploadImages = async (req, res, next) => {
     }));
 
     await productService.addImages(req.params.id, images);
+    const product = await productService.getById(req.params.id);
     logger.info('Product images uploaded successfully', { productId: req.params.id, imageCount: images.length });
-    return ApiResponse.success(res, { images }, 'Images uploaded');
+    return ApiResponse.success(res, product, 'Images uploaded');
   } catch (error) {
     logger.error('Upload product images failed', error, { productId: req.params.id });
     next(error);
