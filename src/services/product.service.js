@@ -17,7 +17,18 @@ class ProductService {
 
     // Filters
     if (query.category) {
-      supabaseQuery = supabaseQuery.eq('categories.slug', query.category);
+      // Get category id by slug
+      const { data: category } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('slug', query.category)
+        .single();
+      if (category) {
+        supabaseQuery = supabaseQuery.eq('category_id', category.id);
+      } else {
+        // No category found, return empty
+        return { products: [], pagination: getPaginationMeta(0, page, limit) };
+      }
     }
     if (query.tireType) {
       supabaseQuery = supabaseQuery.ilike('tire_type', `%${query.tireType}%`);
