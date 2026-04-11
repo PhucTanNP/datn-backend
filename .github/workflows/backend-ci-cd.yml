@@ -95,7 +95,7 @@ jobs:
               --name backend \
               --restart always \
               -p 3000:3000 \
-              --env-file /home/ubuntu/app/.env
+              --env-file /home/ubuntu/app/.env \
               $IMAGE
 
             echo "Cleanup old images..."
