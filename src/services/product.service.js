@@ -47,15 +47,17 @@ class ProductService {
     }
 
     // Sort
-    let orderBy = 'created_at.desc';
+    let orderField = 'created_at';
+    let orderAscending = false;
     if (query.sort) {
       const [field, direction] = query.sort.split(':');
       const allowedFields = ['price', 'name', 'created_at'];
       if (allowedFields.includes(field)) {
-        orderBy = `${field}.${direction === 'asc' ? 'asc' : 'desc'}`;
+        orderField = field;
+        orderAscending = direction === 'asc';
       }
     }
-    supabaseQuery = supabaseQuery.order(orderBy);
+    supabaseQuery = supabaseQuery.order(orderField, { ascending: orderAscending });
 
     const { data: products, error, count } = await supabaseQuery;
 

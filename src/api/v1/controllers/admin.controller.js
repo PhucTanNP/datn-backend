@@ -496,3 +496,119 @@ exports.updateUserStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.updateProduct = async (req, res, next) => {
+  try {
+    logger.info('Update product API called', { productId: req.params.id, sku: req.body.sku, name: req.body.name, adminId: req.user?.id, ip: req.ip });
+    const {
+      categoryId, sku, name, slug, description, price, salePrice,
+      stockQuantity, size, rimDiameter, loadIndex, speedRating, tireType, isActive,
+    } = req.body;
+
+    if (!sku || !name || !slug || !price) {
+      logger.warn('Update product failed: Missing required fields', { sku, name, slug, price });
+      return ApiResponse.error(res, 'SKU, name, slug, and price are required', 400);
+    }
+
+    const parsedPrice = parseFloat(price);
+    const parsedSalePrice = salePrice ? parseFloat(salePrice) : null;
+
+    // Validate price range (Decimal(12,2) max is 9999999999.99)
+    if (parsedPrice < 0 || parsedPrice >= 10000000000) {
+      logger.warn('Update product failed: Invalid price', { price: parsedPrice });
+      return ApiResponse.error(res, 'Price must be between 0 and 9,999,999,999.99', 400);
+    }
+
+    if (parsedSalePrice !== null && (parsedSalePrice < 0 || parsedSalePrice >= 10000000000)) {
+      logger.warn('Update product failed: Invalid sale price', { salePrice: parsedSalePrice });
+      return ApiResponse.error(res, 'Sale price must be between 0 and 9,999,999,999.99', 400);
+    }
+
+    const updateData = {
+      category_id: categoryId,
+      sku,
+      name,
+      slug,
+      description,
+      price: parsedPrice,
+      sale_price: parsedSalePrice,
+      stock_quantity: parseInt(stockQuantity) || 0,
+      size,
+      rim_diameter: rimDiameter ? parseInt(rimDiameter) : null,
+      load_index: loadIndex,
+      speed_rating: speedRating,
+      tire_type: tireType,
+      is_active: isActive !== undefined ? isActive : true,
+    };
+
+    const productService = require('../../../services/product.service');
+    const updatedProduct = await productService.update(req.params.id, updateData);
+
+    // Format response similar to getProducts
+    const formattedProduct = {
+      id: updatedProduct.id,
+      sku: updatedProduct.sku,
+      name: updatedProduct.name,
+      slug: updatedProduct.slug,
+      price: updatedProduct.price,
+      salePrice: updatedProduct.sale_price,
+      stockQuantity: updatedProduct.stock_quantity,
+      isActive: updatedProduct.is_active,
+      createdAt: updatedProduct.created_at,
+      updatedAt: updatedProduct.updated_at,
+      category: {
+        name: updatedProduct.categories?.name,
+      },
+      images: updatedProduct.images || [],
+    };
+
+    logger.info('Product updated successfully', { productId: req.params.id, sku, name });
+    return ApiResponse.success(res, formattedProduct, 'Product updated');
+  } catch (error) {
+    logger.error('Update product failed', error, { productId: req.params.id });
+    next(error);
+  }
+};
+
+exports.deleteProduct = async (req, res, next) => {
+  try {
+    logger.info('Delete product API called', { productId: req.params.id, adminId: req.user?.id, ip: req.ip });
+
+    // Get product images first for cleanup
+    const { data: images, error: imagesError } = await supabase
+      .from('product_images')
+      .select('cloudinary_id')
+      .eq('product_id', req.params.id);
+
+    if (imagesError) throw imagesError;
+
+    // Delete product (this will cascade delete images due to foreign key)
+    const { error: deleteError } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (deleteError) throw deleteError;
+
+    // Delete images from Cloudinary
+    if (images && images.length > 0) {
+      const cloudinaryService = require('../../../services/cloudinary.service');
+      for (const image of images) {
+        if (image.cloudinary_id) {
+          try {
+            await cloudinaryService.deleteImage(image.cloudinary_id);
+            logger.info('Image deleted from Cloudinary', { cloudinaryId: image.cloudinary_id });
+          } catch (cloudinaryError) {
+            logger.warn('Failed to delete image from Cloudinary', { cloudinaryId: image.cloudinary_id, error: cloudinaryError.message });
+          }
+        }
+      }
+    }
+
+    logger.info('Product deleted successfully', { productId: req.params.id, imagesDeleted: images?.length || 0 });
+    return ApiResponse.success(res, null, 'Product deleted');
+  } catch (error) {
+    logger.error('Delete product failed', error, { productId: req.params.id });
+    next(error);
+  }
+};

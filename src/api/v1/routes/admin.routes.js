@@ -27,6 +27,12 @@ router.get('/products', adminController.getProducts);
 // POST /api/v1/admin/products
 router.post('/products', uploadProduct.array('images', 5), adminController.createProduct);
 
+// PUT /api/v1/admin/products/:id
+router.put('/products/:id', adminController.updateProduct);
+
+// DELETE /api/v1/admin/products/:id
+router.delete('/products/:id', adminController.deleteProduct);
+
 // GET /api/v1/admin/analytics
 router.get('/analytics', adminController.getAnalytics);
 
