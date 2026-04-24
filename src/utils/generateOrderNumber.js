@@ -1,20 +1,21 @@
 /**
  * Generate order number: DRC-2024-00001
  */
-const generateOrderNumber = async (prisma) => {
+const supabase = require('../config/database');
+
+const generateOrderNumber = async () => {
   const year = new Date().getFullYear();
-  const lastOrder = await prisma.order.findFirst({
-    where: {
-      orderNumber: {
-        startsWith: `DRC-${year}-`,
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const { data: lastOrder, error } = await supabase
+    .from('orders')
+    .select('order_number')
+    .like('order_number', `DRC-${year}-%`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
 
   let nextNum = 1;
   if (lastOrder) {
-    const parts = lastOrder.orderNumber.split('-');
+    const parts = lastOrder.order_number.split('-');
     nextNum = parseInt(parts[2]) + 1;
   }
 

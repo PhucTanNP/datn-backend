@@ -10,17 +10,17 @@ router.post('/', authMiddleware, orderController.create);
 // GET /api/v1/orders/my
 router.get('/my', authMiddleware, orderController.getMyOrders);
 
-// Admin routes
-// GET /api/v1/admin/orders
-router.get('/admin',
-  authMiddleware, adminMiddleware,
-  orderController.getAllOrders
-);
+// GET /api/v1/orders/:id
+router.get('/:id', authMiddleware, orderController.getById);
 
-// PATCH /api/v1/admin/orders/:id/status
-router.patch('/:id/status',
-  authMiddleware, adminMiddleware,
-  orderController.updateStatus
-);
+// Admin routes
+// GET /api/v1/orders/admin
+router.get('/admin', authMiddleware, adminMiddleware, orderController.getAllOrders);
+
+// PUT /api/v1/orders/:id (Admin update order status)
+router.put('/:id', authMiddleware, adminMiddleware, orderController.updateStatus);
+
+// DELETE /api/v1/orders/:id (Admin delete order)
+router.delete('/:id', authMiddleware, adminMiddleware, orderController.deleteOrder);
 
 module.exports = router;

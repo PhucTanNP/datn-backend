@@ -26,12 +26,12 @@ async function main() {
 main();
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  await prisma.$disconnect();
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
   process.exit(0);
 });
 
-process.on('SIGTERM', async () => {
-  await prisma.$disconnect();
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
   process.exit(0);
 });

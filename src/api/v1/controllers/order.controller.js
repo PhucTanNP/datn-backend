@@ -65,3 +65,34 @@ exports.updateStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getById = async (req, res, next) => {
+  try {
+    logger.info('Get order by ID API called', { orderId: req.params.id, userId: req.user?.id, ip: req.ip });
+    const order = await orderService.getById(req.params.id);
+    
+    // Check authorization: user can only see their own order or admin can see any
+    if (order.user_id !== req.user.id && req.user.role !== 'admin') {
+      logger.warn('Unauthorized access to order', { orderId: req.params.id, userId: req.user.id });
+      return ApiResponse.error(res, 'Unauthorized', 403);
+    }
+    
+    logger.info('Order retrieved successfully', { orderId: req.params.id });
+    return ApiResponse.success(res, order);
+  } catch (error) {
+    logger.error('Get order by ID failed', error, { orderId: req.params.id });
+    next(error);
+  }
+};
+
+exports.deleteOrder = async (req, res, next) => {
+  try {
+    logger.info('Delete order API called', { orderId: req.params.id, userId: req.user?.id, ip: req.ip });
+    const result = await orderService.deleteOrder(req.params.id);
+    logger.info('Order deleted successfully', { orderId: req.params.id });
+    return ApiResponse.success(res, result, 'Order deleted');
+  } catch (error) {
+    logger.error('Delete order failed', error, { orderId: req.params.id });
+    next(error);
+  }
+};
