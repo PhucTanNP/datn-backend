@@ -7,6 +7,7 @@ RUN npm install
 
 
 COPY src ./src
+COPY src/config ./config
 
 EXPOSE 3001
 
