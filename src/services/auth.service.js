@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const supabase = require('../config/supabase');
+const supabase = require('../config/database');
 
 class AuthService {
   async register({ email, password, fullName, phone, address }) {

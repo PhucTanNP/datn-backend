@@ -30,7 +30,7 @@ exports.getDashboard = async (req, res, next) => {
       .from('orders')
       .select(`
         id, order_number, total_amount, status, created_at,
-        users!inner(full_name, email)
+        users!orders_user_id_fkey(full_name, email)
       `)
       .order('created_at', { ascending: false })
       .limit(5);
@@ -83,8 +83,8 @@ exports.getUsers = async (req, res, next) => {
     const { data: users, error: usersError, count } = await supabase
       .from('users')
       .select(`
-        id, email, full_name, phone, role, is_active, created_at,
-        orders(count)
+        id, email, full_name, phone, role, is_active, created_at, note,
+        orders!orders_user_id_fkey(count)
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(skip, skip + limit - 1);
@@ -98,6 +98,7 @@ exports.getUsers = async (req, res, next) => {
       phone: user.phone,
       role: user.role,
       isActive: user.is_active,
+      note: user.note,
       createdAt: user.created_at,
       _count: { orders: user.orders?.[0]?.count || 0 },
     })) || [];
@@ -114,32 +115,22 @@ exports.getOrders = async (req, res, next) => {
   try {
     logger.info('Get orders API called', { query: req.query, userId: req.user?.id, ip: req.ip });
     const { page, limit, skip } = getPagination(req.query);
-
+    // Select all order columns plus order items and related user info
     const { data: orders, error: ordersError, count } = await supabase
       .from('orders')
       .select(`
-        id, order_number, total_amount, status, created_at,
-        users!inner(full_name, email)
+        *,
+        items:order_items(*),
+        users!orders_user_id_fkey(full_name, email, phone)
       `, { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(skip, skip + limit - 1);
 
     if (ordersError) throw ordersError;
 
-    const formattedOrders = orders?.map(order => ({
-      id: order.id,
-      orderNumber: order.order_number,
-      totalAmount: order.total_amount,
-      status: order.status,
-      createdAt: order.created_at,
-      user: {
-        fullName: order.users?.full_name,
-        email: order.users?.email,
-      },
-    })) || [];
-
-    logger.info('Orders retrieved successfully', { count: formattedOrders.length, total: count, page, limit });
-    return ApiResponse.paginated(res, formattedOrders, getPaginationMeta(count, page, limit));
+    logger.info('Orders retrieved successfully', { count: orders?.length || 0, total: count, page, limit });
+    // Return DB rows directly (no mapping) so FE can consume full schema
+    return ApiResponse.paginated(res, orders || [], getPaginationMeta(count, page, limit));
   } catch (error) {
     logger.error('Get orders failed', error, { query: req.query });
     next(error);
@@ -493,6 +484,140 @@ exports.updateUserStatus = async (req, res, next) => {
     return ApiResponse.success(res, formattedUser, 'User status updated');
   } catch (error) {
     logger.error('Update user status failed', error, { targetUserId: req.params.id, adminId: req.user?.id });
+    next(error);
+  }
+};
+
+exports.createUser = async (req, res, next) => {
+  try {
+    const { fullName, email, phone, role, password, status } = req.body;
+    logger.info('Create user API called', { email, role });
+
+    if (!email || !password) {
+      return ApiResponse.error(res, 'Email and password are required', 400);
+    }
+
+    const bcrypt = require('bcryptjs');
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({
+        full_name: fullName,
+        email,
+        phone,
+        role: role || 'customer',
+        password_hash: passwordHash,
+        is_active: status === 'active',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') return ApiResponse.error(res, 'Email already exists', 400);
+      throw error;
+    }
+
+    return ApiResponse.created(res, user, 'User created successfully');
+  } catch (error) {
+    logger.error('Create user failed', error);
+    next(error);
+  }
+};
+
+exports.updateUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { fullName, email, phone, role, status, note } = req.body;
+    logger.info('Update user API called', { userId: id, email });
+
+    const updateData = {
+      full_name: fullName,
+      email,
+      phone,
+      role,
+      is_active: status === 'active',
+      note,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return ApiResponse.success(res, user, 'User updated successfully');
+  } catch (error) {
+    logger.error('Update user failed', error);
+    next(error);
+  }
+};
+
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    logger.info('Delete user API called', { userId: id });
+
+    // Prevent deleting self
+    if (id === req.user.id) {
+      return ApiResponse.error(res, 'You cannot delete yourself', 400);
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    return ApiResponse.success(res, null, 'User deleted successfully');
+  } catch (error) {
+    logger.error('Delete user failed', error);
+    next(error);
+  }
+};
+
+exports.updateOrderPaymentStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, isPaid } = req.body; // status: 'paid', 'unpaid', 'failed', 'pending'
+    logger.info('Update order payment status API called', { orderId: id, status, isPaid });
+
+    const updateData = {
+      payment_status: status,
+      is_paid: isPaid,
+      updated_at: new Date().toISOString()
+    };
+
+    // If payment is approved (paid), we might want to update the order status as well
+    if (isPaid) {
+      // set order as confirmed when admin marks as paid
+      updateData.is_paid = true;
+      updateData.payment_status = status || 'paid';
+      updateData.payment_confirmed_at = new Date().toISOString();
+      updateData.payment_confirmed_by = req.user?.id || null;
+      if (status === 'paid' || status === 'paid_confirmed') {
+        updateData.status = 'confirmed';
+      }
+    }
+
+    const { data: order, error } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    logger.info('Order payment status updated successfully', { orderId: id, status });
+    return ApiResponse.success(res, order, 'Payment status updated');
+  } catch (error) {
+    logger.error('Update payment status failed', error);
     next(error);
   }
 };

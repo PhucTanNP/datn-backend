@@ -17,5 +17,7 @@ router.post('/logout', authMiddleware, authController.logout);
 
 // GET /api/v1/auth/profile
 router.get('/profile', authMiddleware, authController.getProfile);
+// PUT /api/v1/auth/profile
+router.put('/profile', authMiddleware, authController.updateProfile);
 
 module.exports = router;

@@ -3,6 +3,31 @@ const generateOrderNumber = require('../utils/generateOrderNumber');
 const { getPagination, getPaginationMeta } = require('../utils/pagination');
 
 class OrderService {
+  async updateProductStock(productId, delta) {
+    // Read current stock
+    const { data: product, error: fetchErr } = await supabase
+      .from('products')
+      .select('stock_quantity')
+      .eq('id', productId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+    if (!product) throw Object.assign(new Error('Product not found'), { statusCode: 404 });
+
+    const current = Number(product.stock_quantity || 0);
+    const next = current + Number(delta);
+    if (next < 0) {
+      throw Object.assign(new Error(`Insufficient stock: available ${current}`), { statusCode: 400 });
+    }
+
+    const { error: updErr } = await supabase
+      .from('products')
+      .update({ stock_quantity: next, updated_at: new Date().toISOString() })
+      .eq('id', productId);
+
+    if (updErr) throw updErr;
+    return true;
+  }
   async create(userId, { items, shippingName, shippingPhone, shippingAddress, notes }) {
     // Validate products & calculate totals
     const productIds = items.map((i) => i.productId);
@@ -69,8 +94,6 @@ class OrderService {
       .single();
 
     if (orderError) throw orderError;
-
-    // Insert order items
     const { error: itemsError } = await supabase
       .from('order_items')
       .insert(
@@ -82,13 +105,9 @@ class OrderService {
 
     if (itemsError) throw itemsError;
 
-    // Update product stock
+    // Update product stock (use backend helper to handle missing RPC)
     for (const item of items) {
-      const { error: stockError } = await supabase.rpc('update_product_stock', {
-        p_product_id: item.productId,
-        p_quantity: -item.quantity,
-      });
-      if (stockError) throw stockError;
+      await this.updateProductStock(item.productId, -item.quantity);
     }
 
     return { ...order, items: orderItems };
@@ -154,8 +173,7 @@ class OrderService {
       .eq('id', orderId)
       .select(`
         *,
-        items:order_items(*),
-        payments:order_payments(*)
+        items:order_items(*)
       `)
       .single();
 
@@ -196,11 +214,7 @@ class OrderService {
 
     // Restore stock for all items
     for (const item of order.items) {
-      const { error: stockError } = await supabase.rpc('update_product_stock', {
-        p_product_id: item.product_id,
-        p_quantity: item.quantity, // Restore stock (positive)
-      });
-      if (stockError) throw stockError;
+      await this.updateProductStock(item.product_id, item.quantity);
     }
 
     // Delete order items first (cascade)

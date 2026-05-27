@@ -1,6 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 
-const supabase = require('../config/supabase');
+const supabase = require('../config/database');
 const cloudinary = require('../config/cloudinary');
 
 class SupabaseService {

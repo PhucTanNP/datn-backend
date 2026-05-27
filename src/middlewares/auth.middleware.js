@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const supabase = require('../config/supabase');
+const supabase = require('../config/database');
 const ApiResponse = require('../utils/response');
 
 const authMiddleware = async (req, res, next) => {
@@ -14,7 +14,7 @@ const authMiddleware = async (req, res, next) => {
 
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, full_name, phone, role, is_active')
+      .select('id, email, full_name, phone, address, avatar_url, role, is_active, status, note, created_at, updated_at')
       .eq('id', decoded.userId)
       .single();
 
@@ -22,16 +22,20 @@ const authMiddleware = async (req, res, next) => {
       return ApiResponse.error(res, 'User not found or inactive', 401);
     }
 
+    // Normalize user object to snake_case to match frontend types
     req.user = {
       id: user.id,
       email: user.email,
-      fullName: user.full_name,
-      role: user.role,
-      isActive: user.is_active,
+      full_name: user.full_name,
       phone: user.phone,
+      address: user.address,
+      avatar_url: user.avatar_url,
       role: user.role,
-      isActive: user.is_active,
-      phone: user.phone,
+      is_active: user.is_active,
+      status: user.status,
+      note: user.note,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
     };
     next();
   } catch (error) {

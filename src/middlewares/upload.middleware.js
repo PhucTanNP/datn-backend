@@ -6,7 +6,7 @@ const getCloudinaryStorage = (folder, transformation = []) => ({
   _handleFile: (req, file, cb) => {
     const params = {
       folder,
-      resource_type: 'image',
+      resource_type: 'auto', // Allow all types (images and PDFs)
       transformation,
     };
     const uploadStream = cloudinary.uploader.upload_stream(params, (error, result) => {
@@ -32,6 +32,7 @@ const getCloudinaryStorage = (folder, transformation = []) => ({
 const productStorage = getCloudinaryStorage('drc-tires/products', [{ width: 800, height: 800, crop: 'limit', quality: 'auto' }]);
 const inspectionStorage = getCloudinaryStorage('drc-tires/inspections');
 const avatarStorage = getCloudinaryStorage('drc-tires/avatars', [{ width: 200, height: 200, crop: 'fill', gravity: 'face', quality: 'auto' }]);
+const paymentProofStorage = getCloudinaryStorage('drc-payment-proofs');
 
 const productFileFilter = (req, file, cb) => {
   const allowed = ['image/jpeg', 'image/png', 'image/webp'];
@@ -48,6 +49,15 @@ const inspectionFileFilter = (req, file, cb) => {
     cb(null, true);
   } else {
     cb(new Error('Only JPG, PNG allowed'), false);
+  }
+};
+
+const paymentProofFileFilter = (req, file, cb) => {
+  const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only JPG, PNG, PDF allowed'), false);
   }
 };
 
@@ -68,3 +78,15 @@ exports.uploadAvatar = multer({
   fileFilter: avatarFileFilter,
   limits: { fileSize: 2 * 1024 * 1024 } 
 });
+exports.uploadPaymentProof = multer({ 
+  storage: paymentProofStorage, 
+  fileFilter: paymentProofFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 } 
+});
+
+// Default export for generic use
+module.exports = exports;
+module.exports.single = function(fieldName) {
+  return exports.uploadPaymentProof.single(fieldName);
+};
+

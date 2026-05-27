@@ -9,7 +9,6 @@ const authRoutes       = require('./api/v1/routes/auth.routes');
 const productRoutes    = require('./api/v1/routes/product.routes');
 const categoriesRoutes = require('./api/v1/routes/categories.routes');
 const orderRoutes      = require('./api/v1/routes/order.routes');
-const paymentRoutes    = require('./api/v1/routes/payment.routes');
 const inspectionRoutes = require('./api/v1/routes/inspection.routes');
 const adminRoutes      = require('./api/v1/routes/admin.routes');
 
@@ -52,7 +51,6 @@ app.use('/api/v1/auth',       authRoutes);
 app.use('/api/v1/products',   productRoutes);
 app.use('/api/v1/categories', categoriesRoutes);
 app.use('/api/v1/orders',     orderRoutes);
-app.use('/api/v1/payments',   paymentRoutes);
 app.use('/api/v1/inspect',    inspectionRoutes);
 app.use('/api/v1/admin',      adminRoutes);
 

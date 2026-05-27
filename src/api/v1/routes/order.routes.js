@@ -3,9 +3,17 @@ const router = express.Router();
 const orderController = require('../controllers/order.controller');
 const authMiddleware = require('../../../middlewares/auth.middleware');
 const adminMiddleware = require('../../../middlewares/admin.middleware');
+const { uploadPaymentProof } = require('../../../middlewares/upload.middleware');
 
 // POST /api/v1/orders
 router.post('/', authMiddleware, orderController.create);
+
+// POST /api/v1/orders/:id/payment-proof
+router.post('/:id/payment-proof', 
+  authMiddleware, 
+  uploadPaymentProof.single('image'), 
+  orderController.uploadPaymentProof
+);
 
 // GET /api/v1/orders/my
 router.get('/my', authMiddleware, orderController.getMyOrders);

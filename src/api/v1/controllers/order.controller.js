@@ -1,4 +1,5 @@
 const orderService = require('../../../services/order.service');
+const supabase = require('../../../config/database');
 const ApiResponse = require('../../../utils/response');
 const logger = require('../../../utils/logger');
 
@@ -25,6 +26,48 @@ exports.create = async (req, res, next) => {
     return ApiResponse.created(res, order, 'Order created');
   } catch (error) {
     logger.error('Create order failed', error, { userId: req.user.id });
+    next(error);
+  }
+};
+
+exports.uploadPaymentProof = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    logger.info('Upload payment proof API called', { orderId: id, userId: req.user.id });
+
+    if (!req.file) {
+      return ApiResponse.error(res, 'Payment proof image is required', 400);
+    }
+
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, user_id')
+      .eq('id', id)
+      .single();
+
+    if (orderError || !order) {
+      return ApiResponse.error(res, 'Order not found', 404);
+    }
+
+    if (order.user_id !== req.user.id) {
+      return ApiResponse.error(res, 'Unauthorized', 403);
+    }
+
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        payment_proof_url: req.file.path,
+        payment_status: 'pending',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    logger.info('Payment proof uploaded successfully', { orderId: id, url: req.file.path });
+    return ApiResponse.success(res, { imageUrl: req.file.path }, 'Payment proof uploaded successfully');
+  } catch (error) {
+    logger.error('Upload payment proof failed', error);
     next(error);
   }
 };
@@ -70,13 +113,13 @@ exports.getById = async (req, res, next) => {
   try {
     logger.info('Get order by ID API called', { orderId: req.params.id, userId: req.user?.id, ip: req.ip });
     const order = await orderService.getById(req.params.id);
-    
+
     // Check authorization: user can only see their own order or admin can see any
     if (order.user_id !== req.user.id && req.user.role !== 'admin') {
       logger.warn('Unauthorized access to order', { orderId: req.params.id, userId: req.user.id });
       return ApiResponse.error(res, 'Unauthorized', 403);
     }
-    
+
     logger.info('Order retrieved successfully', { orderId: req.params.id });
     return ApiResponse.success(res, order);
   } catch (error) {

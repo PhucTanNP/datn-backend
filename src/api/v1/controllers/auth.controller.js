@@ -89,3 +89,40 @@ exports.getProfile = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    logger.info('Update profile API called', { userId });
+
+    const { full_name, phone, address, email } = req.body;
+
+    const updateData = {
+      full_name,
+      phone,
+      address,
+      email,
+      updated_at: new Date().toISOString(),
+    };
+
+    const supabase = require('../../../config/database');
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('Update profile failed', error, { userId });
+      throw error;
+    }
+
+    logger.info('Profile updated successfully', { userId });
+    return ApiResponse.success(res, user, 'Profile updated');
+  } catch (error) {
+    logger.error('Update profile error', error, { userId: req.user?.id });
+    next(error);
+  }
+};
