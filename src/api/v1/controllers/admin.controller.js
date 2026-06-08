@@ -145,7 +145,9 @@ exports.getProducts = async (req, res, next) => {
     const { data: products, error: productsError, count } = await supabase
       .from('products')
       .select(`
-        id, sku, name, slug, price, sale_price, stock_quantity, is_active, created_at,
+        id, category_id, sku, name, slug, description, price, sale_price, stock_quantity,
+        size, rim_diameter, load_index, speed_rating, tire_type,
+        is_active, created_at, updated_at,
         categories(name),
         images:product_images(*)
       `, { count: 'exact' })
@@ -155,25 +157,33 @@ exports.getProducts = async (req, res, next) => {
     if (productsError) throw productsError;
 
     const formattedProducts = products?.map(product => {
-      // Sort images by sort_order
-      if (product.images) {
-        product.images = product.images.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      // Unwrap images array → single object
+      let image = null;
+      if (product.images && product.images.length > 0) {
+        image = product.images[0];
       }
 
       return {
         id: product.id,
+        categoryId: product.category_id,
         sku: product.sku,
         name: product.name,
         slug: product.slug,
+        description: product.description,
         price: product.price,
         salePrice: product.sale_price,
         stockQuantity: product.stock_quantity,
+        size: product.size,
+        rimDiameter: product.rim_diameter,
+        loadIndex: product.load_index,
+        speedRating: product.speed_rating,
         isActive: product.is_active,
         createdAt: product.created_at,
+        updatedAt: product.updated_at,
         category: {
           name: product.categories?.name,
         },
-        images: product.images || [],
+        images: image,
       };
     }) || [];
 
@@ -190,7 +200,7 @@ exports.createProduct = async (req, res, next) => {
     logger.info('Create product API called', { sku: req.body.sku, name: req.body.name, userId: req.user?.id, ip: req.ip });
     const {
       categoryId, sku, name, slug, description, price, salePrice,
-      stockQuantity, size, rimDiameter, loadIndex, speedRating, tireType,
+      stockQuantity, size, rimDiameter, loadIndex, speedRating,
     } = req.body;
 
     if (!sku || !name || !slug || !price) {
@@ -227,7 +237,6 @@ exports.createProduct = async (req, res, next) => {
         rim_diameter: rimDiameter ? parseInt(rimDiameter) : null,
         load_index: loadIndex,
         speed_rating: speedRating,
-        tire_type: tireType,
         is_active: true,
       })
       .select(`
@@ -326,7 +335,7 @@ exports.createProduct = async (req, res, next) => {
     const { data: productWithImages } = await supabase
       .from('products')
       .select(`
-        id, sku, name, slug, description, price, sale_price, stock_quantity,
+        id, category_id, sku, name, slug, description, price, sale_price, stock_quantity,
         size, rim_diameter, load_index, speed_rating, tire_type, is_active, created_at,
         categories(name),
         images:product_images(*)
@@ -334,13 +343,15 @@ exports.createProduct = async (req, res, next) => {
       .eq('id', product.id)
       .single();
 
-    // Sort images
-    if (productWithImages.images) {
-      productWithImages.images = productWithImages.images.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    // Unwrap images array → single object
+    let image = null;
+    if (productWithImages.images && productWithImages.images.length > 0) {
+      image = productWithImages.images[0];
     }
 
     const formattedProduct = {
       id: productWithImages.id,
+      categoryId: productWithImages.category_id,
       sku: productWithImages.sku,
       name: productWithImages.name,
       slug: productWithImages.slug,
@@ -352,13 +363,12 @@ exports.createProduct = async (req, res, next) => {
       rimDiameter: productWithImages.rim_diameter,
       loadIndex: productWithImages.load_index,
       speedRating: productWithImages.speed_rating,
-      tireType: productWithImages.tire_type,
       isActive: productWithImages.is_active,
       createdAt: productWithImages.created_at,
       category: {
         name: productWithImages.categories?.name,
       },
-      images: productWithImages.images || [],
+      images: image,
     };
 
     logger.info('Product created successfully', { productId: product.id, sku, name, imageCount: imageInserts.length });
@@ -627,7 +637,7 @@ exports.updateProduct = async (req, res, next) => {
     logger.info('Update product API called', { productId: req.params.id, sku: req.body.sku, name: req.body.name, adminId: req.user?.id, ip: req.ip });
     const {
       categoryId, sku, name, slug, description, price, salePrice,
-      stockQuantity, size, rimDiameter, loadIndex, speedRating, tireType, isActive,
+      stockQuantity, size, rimDiameter, loadIndex, speedRating, isActive,
     } = req.body;
 
     if (!sku || !name || !slug || !price) {
@@ -662,9 +672,64 @@ exports.updateProduct = async (req, res, next) => {
       rim_diameter: rimDiameter ? parseInt(rimDiameter) : null,
       load_index: loadIndex,
       speed_rating: speedRating,
-      tire_type: tireType,
       is_active: isActive !== undefined ? isActive : true,
     };
+
+    // Handle image update — chỉ xử lý khi frontend chủ động gửi field 'image'
+    const { image, cloudinary_id } = req.body;
+
+    console.log('📸 Update image check:', {
+      hasImageKey: 'image' in req.body,
+      imageValue: image ? image.substring(0, 50) + '...' : image,
+      cloudinary_id,
+      bodyKeys: Object.keys(req.body),
+    });
+
+    if (req.body.image !== undefined) {
+      // Delete old images from DB and Cloudinary
+      const { data: oldImages } = await supabase
+        .from('product_images')
+        .select('cloudinary_id')
+        .eq('product_id', req.params.id);
+
+      if (oldImages && oldImages.length > 0) {
+        // Delete from Cloudinary
+        const cloudinaryService = require('../../../services/cloudinary.service');
+        for (const img of oldImages) {
+          if (img.cloudinary_id) {
+            try {
+              await cloudinaryService.deleteImage(img.cloudinary_id);
+            } catch (e) {
+              logger.warn('Failed to delete old image from Cloudinary', { cloudinaryId: img.cloudinary_id });
+            }
+          }
+        }
+
+        // Delete old records
+        const { error: deleteOldError } = await supabase
+          .from('product_images')
+          .delete()
+          .eq('product_id', req.params.id);
+
+        if (deleteOldError) throw deleteOldError;
+      }
+
+      // Insert new image
+      const { error: insertImageError } = await supabase
+        .from('product_images')
+        .insert({
+          product_id: req.params.id,
+          cloudinary_id: cloudinary_id || null,
+          url: image,
+          alt_text: `${name} image`,
+          is_primary: true,
+          sort_order: 0,
+        });
+
+      if (insertImageError) throw insertImageError;
+
+      logger.info('Product image updated', { productId: req.params.id, imageUrl: image });
+    }
 
     const productService = require('../../../services/product.service');
     const updatedProduct = await productService.update(req.params.id, updateData);
@@ -672,19 +737,25 @@ exports.updateProduct = async (req, res, next) => {
     // Format response similar to getProducts
     const formattedProduct = {
       id: updatedProduct.id,
+      categoryId: updatedProduct.category_id,
       sku: updatedProduct.sku,
       name: updatedProduct.name,
       slug: updatedProduct.slug,
+      description: updatedProduct.description,
       price: updatedProduct.price,
       salePrice: updatedProduct.sale_price,
       stockQuantity: updatedProduct.stock_quantity,
+      size: updatedProduct.size,
+      rimDiameter: updatedProduct.rim_diameter,
+      loadIndex: updatedProduct.load_index,
+      speedRating: updatedProduct.speed_rating,
       isActive: updatedProduct.is_active,
       createdAt: updatedProduct.created_at,
       updatedAt: updatedProduct.updated_at,
       category: {
         name: updatedProduct.categories?.name,
       },
-      images: updatedProduct.images || [],
+      images: updatedProduct.images || null,
     };
 
     logger.info('Product updated successfully', { productId: req.params.id, sku, name });

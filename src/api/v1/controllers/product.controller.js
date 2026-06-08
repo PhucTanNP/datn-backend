@@ -32,7 +32,7 @@ exports.create = async (req, res, next) => {
     logger.info('Create product API called', { sku: req.body.sku, name: req.body.name, userId: req.user?.id, ip: req.ip });
     const {
       categoryId, sku, name, slug, description, price, salePrice,
-      stockQuantity, size, rimDiameter, loadIndex, speedRating, tireType,
+      stockQuantity, size, rimDiameter, loadIndex, speedRating,
     } = req.body;
 
     if (!sku || !name || !slug || !price) {
@@ -46,7 +46,7 @@ exports.create = async (req, res, next) => {
       salePrice: salePrice ? parseFloat(salePrice) : null,
       stockQuantity: parseInt(stockQuantity) || 0,
       size, rimDiameter: rimDiameter ? parseInt(rimDiameter) : null,
-      loadIndex, speedRating, tireType,
+      loadIndex, speedRating,
     });
 
     logger.info('Product created successfully', { productId: product.id, sku, name });

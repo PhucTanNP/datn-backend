@@ -1,6 +1,19 @@
 const supabase = require('../config/database');
 const { getPagination, getPaginationMeta } = require('../utils/pagination');
 
+// Helper: chuyển snake_case → camelCase
+const toCamelCase = (obj) => {
+  if (Array.isArray(obj)) return obj.map(toCamelCase);
+  if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      acc[camelKey] = toCamelCase(obj[key]);
+      return acc;
+    }, {});
+  }
+  return obj;
+};
+
 class ProductService {
   async getAll(query) {
     const { page, limit, skip } = getPagination(query);
@@ -29,9 +42,6 @@ class ProductService {
         // No category found, return empty
         return { products: [], pagination: getPaginationMeta(0, page, limit) };
       }
-    }
-    if (query.tireType) {
-      supabaseQuery = supabaseQuery.ilike('tire_type', `%${query.tireType}%`);
     }
     if (query.size) {
       supabaseQuery = supabaseQuery.ilike('size', `%${query.size}%`);
@@ -63,17 +73,18 @@ class ProductService {
 
     if (error) throw error;
 
-    // Process images (take first 3, sorted by sort_order)
-    products.forEach(product => {
-      if (product.images) {
-        product.images = product.images
-          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-          .slice(0, 3);
+    // Unwrap images array → single object + camelCase
+    const mapped = products.map(product => {
+      if (product.images && product.images.length > 0) {
+        product.images = product.images[0];
+      } else {
+        product.images = null;
       }
+      return toCamelCase(product);
     });
 
     return {
-      products,
+      products: mapped,
       pagination: getPaginationMeta(count, page, limit),
     };
   }
@@ -94,12 +105,14 @@ class ProductService {
       throw Object.assign(new Error('Product not found'), { statusCode: 404 });
     }
 
-    // Sort images
-    if (product.images) {
-      product.images = product.images.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    // Unwrap images array → single object + camelCase
+    if (product.images && product.images.length > 0) {
+      product.images = product.images[0];
+    } else {
+      product.images = null;
     }
 
-    return product;
+    return toCamelCase(product);
   }
 
   async getBySlug(slug) {
@@ -118,12 +131,14 @@ class ProductService {
       throw Object.assign(new Error('Product not found'), { statusCode: 404 });
     }
 
-    // Sort images
-    if (product.images) {
-      product.images = product.images.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    // Unwrap images array → single object + camelCase
+    if (product.images && product.images.length > 0) {
+      product.images = product.images[0];
+    } else {
+      product.images = null;
     }
 
-    return product;
+    return toCamelCase(product);
   }
 
   async create(data) {
@@ -137,8 +152,14 @@ class ProductService {
       `)
       .single();
 
-    if (error) throw error;
-    return product;
+    // Unwrap images array → single object + camelCase
+    if (product.images && product.images.length > 0) {
+      product.images = product.images[0];
+    } else {
+      product.images = null;
+    }
+
+    return toCamelCase(product);
   }
 
   async update(id, data) {
@@ -153,8 +174,14 @@ class ProductService {
       `)
       .single();
 
-    if (error) throw error;
-    return product;
+    // Unwrap images array → single object + camelCase
+    if (product.images && product.images.length > 0) {
+      product.images = product.images[0];
+    } else {
+      product.images = null;
+    }
+
+    return toCamelCase(product);
   }
 
   async delete(id) {
