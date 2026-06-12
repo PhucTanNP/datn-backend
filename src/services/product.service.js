@@ -22,7 +22,7 @@ class ProductService {
       .from('products')
       .select(`
         *,
-        category:categories(id, name, slug),
+        category:categories(id, name, slug, image_url),
         images:product_images(*)
       `, { count: 'exact' })
       .eq('is_active', true)

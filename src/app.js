@@ -10,6 +10,8 @@ const productRoutes    = require('./api/v1/routes/product.routes');
 const categoriesRoutes = require('./api/v1/routes/categories.routes');
 const orderRoutes      = require('./api/v1/routes/order.routes');
 const inspectionRoutes = require('./api/v1/routes/inspection.routes');
+const cartRoutes       = require('./api/v1/routes/cart.routes');
+const chatRoutes       = require('./api/v1/routes/chat.routes');
 const adminRoutes      = require('./api/v1/routes/admin.routes');
 
 // Import middleware
@@ -52,6 +54,8 @@ app.use('/api/v1/products',   productRoutes);
 app.use('/api/v1/categories', categoriesRoutes);
 app.use('/api/v1/orders',     orderRoutes);
 app.use('/api/v1/inspect',    inspectionRoutes);
+app.use('/api/v1/cart',       cartRoutes);
+app.use('/api/v1/chat',       chatRoutes);
 app.use('/api/v1/admin',      adminRoutes);
 
 // 404 handler

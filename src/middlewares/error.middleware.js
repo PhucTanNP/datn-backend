@@ -1,7 +1,8 @@
 const ApiResponse = require('../utils/response');
+const logger = require('../utils/logger');
 
 const errorMiddleware = (err, req, res, next) => {
-  console.error('Error:', err);
+  logger.error(err.message, err, { tag: 'http' });
 
   // Prisma errors
   if (err.code === 'P2002') {

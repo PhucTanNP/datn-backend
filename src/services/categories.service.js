@@ -1,6 +1,19 @@
 const supabase = require('../config/database');
 const { getPagination, getPaginationMeta } = require('../utils/pagination');
 
+// Helper: chuyển snake_case → camelCase
+const toCamelCase = (obj) => {
+  if (Array.isArray(obj)) return obj.map(toCamelCase);
+  if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((acc, key) => {
+      const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      acc[camelKey] = toCamelCase(obj[key]);
+      return acc;
+    }, {});
+  }
+  return obj;
+};
+
 class CategoriesService {
   async getAll(query = {}) {
     const { page, limit, skip } = getPagination(query);
@@ -26,7 +39,7 @@ class CategoriesService {
 
     const pagination = getPaginationMeta(count, page, limit);
 
-    return { categories, pagination };
+    return { categories: categories.map(toCamelCase), pagination };
   }
 
   async getById(id) {
@@ -40,7 +53,7 @@ class CategoriesService {
       throw new Error(`Failed to fetch category: ${error.message}`);
     }
 
-    return category;
+    return toCamelCase(category);
   }
 
   async create(data) {
@@ -54,7 +67,7 @@ class CategoriesService {
       throw new Error(`Failed to create category: ${error.message}`);
     }
 
-    return category;
+    return toCamelCase(category);
   }
 
   async update(id, data) {
@@ -69,7 +82,7 @@ class CategoriesService {
       throw new Error(`Failed to update category: ${error.message}`);
     }
 
-    return category;
+    return toCamelCase(category);
   }
 
   async delete(id) {

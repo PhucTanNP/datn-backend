@@ -161,15 +161,25 @@ class OrderService {
     return { orders, pagination: getPaginationMeta(count, page, limit) };
   }
 
-  async updateStatus(orderId, status) {
+  async updateStatus(orderId, status, paymentFields = {}) {
     const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
     if (!validStatuses.includes(status)) {
       throw Object.assign(new Error('Invalid status'), { statusCode: 400 });
     }
 
+    const updateData = { status, updated_at: new Date().toISOString() };
+
+    // Nếu có payment_status hoặc is_paid thì cập nhật luôn
+    if (paymentFields.payment_status !== undefined) {
+      updateData.payment_status = paymentFields.payment_status;
+    }
+    if (paymentFields.is_paid !== undefined) {
+      updateData.is_paid = paymentFields.is_paid;
+    }
+
     const { data: order, error } = await supabase
       .from('orders')
-      .update({ status })
+      .update(updateData)
       .eq('id', orderId)
       .select(`
         *,

@@ -5,8 +5,6 @@ const logger = require('../../../utils/logger');
 
 exports.getDashboard = async (req, res, next) => {
   try {
-    logger.info('Get admin dashboard API called', { userId: req.user?.id, ip: req.ip });
-
     // Get stats
     const { count: totalUsers } = await supabase
       .from('users')
@@ -42,13 +40,6 @@ exports.getDashboard = async (req, res, next) => {
 
     const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
-    logger.info('Admin dashboard data retrieved successfully', {
-      totalUsers,
-      totalProducts,
-      totalCategories,
-      totalOrders,
-      totalRevenue
-    });
     return ApiResponse.success(res, {
       stats: {
         totalUsers,
@@ -77,7 +68,6 @@ exports.getDashboard = async (req, res, next) => {
 
 exports.getUsers = async (req, res, next) => {
   try {
-    logger.info('Get users API called', { query: req.query, userId: req.user?.id, ip: req.ip });
     const { page, limit, skip } = getPagination(req.query);
 
     const { data: users, error: usersError, count } = await supabase
@@ -103,7 +93,6 @@ exports.getUsers = async (req, res, next) => {
       _count: { orders: user.orders?.[0]?.count || 0 },
     })) || [];
 
-    logger.info('Users retrieved successfully', { count: formattedUsers.length, total: count, page, limit });
     return ApiResponse.paginated(res, formattedUsers, getPaginationMeta(count, page, limit));
   } catch (error) {
     logger.error('Get users failed', error, { query: req.query });
@@ -113,7 +102,6 @@ exports.getUsers = async (req, res, next) => {
 
 exports.getOrders = async (req, res, next) => {
   try {
-    logger.info('Get orders API called', { query: req.query, userId: req.user?.id, ip: req.ip });
     const { page, limit, skip } = getPagination(req.query);
     // Select all order columns plus order items and related user info
     const { data: orders, error: ordersError, count } = await supabase
@@ -128,7 +116,6 @@ exports.getOrders = async (req, res, next) => {
 
     if (ordersError) throw ordersError;
 
-    logger.info('Orders retrieved successfully', { count: orders?.length || 0, total: count, page, limit });
     // Return DB rows directly (no mapping) so FE can consume full schema
     return ApiResponse.paginated(res, orders || [], getPaginationMeta(count, page, limit));
   } catch (error) {
@@ -139,7 +126,6 @@ exports.getOrders = async (req, res, next) => {
 
 exports.getProducts = async (req, res, next) => {
   try {
-    logger.info('Get products API called', { query: req.query, userId: req.user?.id, ip: req.ip });
     const { page, limit, skip } = getPagination(req.query);
 
     const { data: products, error: productsError, count } = await supabase
@@ -187,7 +173,6 @@ exports.getProducts = async (req, res, next) => {
       };
     }) || [];
 
-    logger.info('Products retrieved successfully', { count: formattedProducts.length, total: count, page, limit });
     return ApiResponse.paginated(res, formattedProducts, getPaginationMeta(count, page, limit));
   } catch (error) {
     logger.error('Get products failed', error, { query: req.query });
@@ -197,7 +182,6 @@ exports.getProducts = async (req, res, next) => {
 
 exports.createProduct = async (req, res, next) => {
   try {
-    logger.info('Create product API called', { sku: req.body.sku, name: req.body.name, userId: req.user?.id, ip: req.ip });
     const {
       categoryId, sku, name, slug, description, price, salePrice,
       stockQuantity, size, rimDiameter, loadIndex, speedRating,
@@ -249,12 +233,10 @@ exports.createProduct = async (req, res, next) => {
     if (error) throw error;
 
     // Handle uploaded images
-    logger.info('Checking uploaded images', { filesCount: req.files?.length || 0, bodyImage: req.body.image, bodyImages: req.body.images });
     let imageInserts = [];
 
     if (req.files && req.files.length > 0) {
       // Images uploaded via multipart/form-data
-      logger.info('Processing uploaded files', { files: req.files.map(f => ({ filename: f.filename, cloudinaryId: f.cloudinaryId, path: f.path })) });
       imageInserts = req.files.map((file, index) => ({
         product_id: product.id,
         cloudinary_id: file.cloudinaryId,
@@ -265,7 +247,6 @@ exports.createProduct = async (req, res, next) => {
       }));
     } else if (req.body.image) {
       // Single image provided in request body
-      logger.info('Processing single image from body', { image: req.body.image, cloudinaryId: req.body.cloudinary_id });
       if (typeof req.body.image === 'string') {
         // image is URL string, cloudinary_id from separate field
         imageInserts = [{
@@ -289,7 +270,6 @@ exports.createProduct = async (req, res, next) => {
       }
     } else if (req.body.images && Array.isArray(req.body.images)) {
       // Images provided as URLs in request body
-      logger.info('Processing images from body', { images: req.body.images });
       imageInserts = req.body.images.map((img, index) => {
         if (typeof img === 'string') {
           // img is just a URL string
@@ -316,7 +296,6 @@ exports.createProduct = async (req, res, next) => {
     }
 
     if (imageInserts.length > 0) {
-      logger.info('Inserting images', { imageInserts });
       const { error: imageError } = await supabase
         .from('product_images')
         .insert(imageInserts);
@@ -324,11 +303,7 @@ exports.createProduct = async (req, res, next) => {
       if (imageError) {
         logger.error('Failed to insert product images', imageError);
         throw imageError; // Throw to fail the request
-      } else {
-        logger.info('Images inserted successfully', { count: imageInserts.length });
       }
-    } else {
-      logger.info('No images uploaded');
     }
 
     // Get product with images
@@ -371,7 +346,6 @@ exports.createProduct = async (req, res, next) => {
       images: image,
     };
 
-    logger.info('Product created successfully', { productId: product.id, sku, name, imageCount: imageInserts.length });
     return ApiResponse.created(res, formattedProduct);
   } catch (error) {
     logger.error('Create product failed', error, { sku: req.body.sku, name: req.body.name });
@@ -381,7 +355,6 @@ exports.createProduct = async (req, res, next) => {
 
 exports.getAnalytics = async (req, res, next) => {
   try {
-    logger.info('Get analytics API called', { userId: req.user?.id, ip: req.ip });
     const last30Days = new Date();
     last30Days.setDate(last30Days.getDate() - 30);
 
@@ -454,11 +427,6 @@ exports.getAnalytics = async (req, res, next) => {
       _count: count,
     }));
 
-    logger.info('Analytics data retrieved successfully', {
-      ordersByDayCount: ordersByDayFormatted.length,
-      topProductsCount: topProducts.length,
-      ordersByStatusCount: ordersByStatusFormatted.length
-    });
     return ApiResponse.success(res, {
       ordersByDay: ordersByDayFormatted,
       topProducts,
@@ -472,7 +440,6 @@ exports.getAnalytics = async (req, res, next) => {
 
 exports.updateUserStatus = async (req, res, next) => {
   try {
-    logger.info('Update user status API called', { targetUserId: req.params.id, isActive: req.body.isActive, adminId: req.user?.id, ip: req.ip });
     const { isActive } = req.body;
     const { data: user, error } = await supabase
       .from('users')
@@ -490,7 +457,7 @@ exports.updateUserStatus = async (req, res, next) => {
       isActive: user.is_active,
     };
 
-    logger.info('User status updated successfully', { targetUserId: req.params.id, newStatus: isActive, adminId: req.user?.id });
+
     return ApiResponse.success(res, formattedUser, 'User status updated');
   } catch (error) {
     logger.error('Update user status failed', error, { targetUserId: req.params.id, adminId: req.user?.id });
@@ -501,7 +468,7 @@ exports.updateUserStatus = async (req, res, next) => {
 exports.createUser = async (req, res, next) => {
   try {
     const { fullName, email, phone, role, password, status } = req.body;
-    logger.info('Create user API called', { email, role });
+
 
     if (!email || !password) {
       return ApiResponse.error(res, 'Email and password are required', 400);
@@ -539,7 +506,7 @@ exports.updateUser = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { fullName, email, phone, role, status, note } = req.body;
-    logger.info('Update user API called', { userId: id, email });
+
 
     const updateData = {
       full_name: fullName,
@@ -570,7 +537,7 @@ exports.updateUser = async (req, res, next) => {
 exports.deleteUser = async (req, res, next) => {
   try {
     const { id } = req.params;
-    logger.info('Delete user API called', { userId: id });
+
 
     // Prevent deleting self
     if (id === req.user.id) {
@@ -595,7 +562,7 @@ exports.updateOrderPaymentStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status, isPaid } = req.body; // status: 'paid', 'unpaid', 'failed', 'pending'
-    logger.info('Update order payment status API called', { orderId: id, status, isPaid });
+
 
     const updateData = {
       payment_status: status,
@@ -624,7 +591,6 @@ exports.updateOrderPaymentStatus = async (req, res, next) => {
 
     if (error) throw error;
 
-    logger.info('Order payment status updated successfully', { orderId: id, status });
     return ApiResponse.success(res, order, 'Payment status updated');
   } catch (error) {
     logger.error('Update payment status failed', error);
@@ -634,7 +600,7 @@ exports.updateOrderPaymentStatus = async (req, res, next) => {
 
 exports.updateProduct = async (req, res, next) => {
   try {
-    logger.info('Update product API called', { productId: req.params.id, sku: req.body.sku, name: req.body.name, adminId: req.user?.id, ip: req.ip });
+
     const {
       categoryId, sku, name, slug, description, price, salePrice,
       stockQuantity, size, rimDiameter, loadIndex, speedRating, isActive,
@@ -677,13 +643,6 @@ exports.updateProduct = async (req, res, next) => {
 
     // Handle image update — chỉ xử lý khi frontend chủ động gửi field 'image'
     const { image, cloudinary_id } = req.body;
-
-    console.log('📸 Update image check:', {
-      hasImageKey: 'image' in req.body,
-      imageValue: image ? image.substring(0, 50) + '...' : image,
-      cloudinary_id,
-      bodyKeys: Object.keys(req.body),
-    });
 
     if (req.body.image !== undefined) {
       // Delete old images from DB and Cloudinary
@@ -728,7 +687,7 @@ exports.updateProduct = async (req, res, next) => {
 
       if (insertImageError) throw insertImageError;
 
-      logger.info('Product image updated', { productId: req.params.id, imageUrl: image });
+
     }
 
     const productService = require('../../../services/product.service');
@@ -758,7 +717,6 @@ exports.updateProduct = async (req, res, next) => {
       images: updatedProduct.images || null,
     };
 
-    logger.info('Product updated successfully', { productId: req.params.id, sku, name });
     return ApiResponse.success(res, formattedProduct, 'Product updated');
   } catch (error) {
     logger.error('Update product failed', error, { productId: req.params.id });
@@ -768,7 +726,7 @@ exports.updateProduct = async (req, res, next) => {
 
 exports.deleteProduct = async (req, res, next) => {
   try {
-    logger.info('Delete product API called', { productId: req.params.id, adminId: req.user?.id, ip: req.ip });
+
 
     // Get product images first for cleanup
     const { data: images, error: imagesError } = await supabase
@@ -793,7 +751,7 @@ exports.deleteProduct = async (req, res, next) => {
         if (image.cloudinary_id) {
           try {
             await cloudinaryService.deleteImage(image.cloudinary_id);
-            logger.info('Image deleted from Cloudinary', { cloudinaryId: image.cloudinary_id });
+
           } catch (cloudinaryError) {
             logger.warn('Failed to delete image from Cloudinary', { cloudinaryId: image.cloudinary_id, error: cloudinaryError.message });
           }
@@ -801,7 +759,6 @@ exports.deleteProduct = async (req, res, next) => {
       }
     }
 
-    logger.info('Product deleted successfully', { productId: req.params.id, imagesDeleted: images?.length || 0 });
     return ApiResponse.success(res, null, 'Product deleted');
   } catch (error) {
     logger.error('Delete product failed', error, { productId: req.params.id });
