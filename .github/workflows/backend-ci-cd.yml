@@ -91,7 +91,7 @@ jobs:
             docker run -d \
               --name backend \
               --restart always \
-              -p 3000:3000 \
+              -p 3001:3001 \
               --env-file /home/ubuntu/app/.env \
               $IMAGE
 
