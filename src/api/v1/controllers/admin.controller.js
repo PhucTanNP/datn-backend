@@ -132,7 +132,7 @@ exports.getProducts = async (req, res, next) => {
       .from('products')
       .select(`
         id, category_id, sku, name, slug, description, price, sale_price, stock_quantity,
-        size, rim_diameter, load_index, speed_rating, tire_type,
+        brand, size, size_type, pattern, product_type, has_tube, specs,
         is_active, created_at, updated_at,
         categories(name),
         images:product_images(*)
@@ -159,10 +159,13 @@ exports.getProducts = async (req, res, next) => {
         price: product.price,
         salePrice: product.sale_price,
         stockQuantity: product.stock_quantity,
+        brand: product.brand,
         size: product.size,
-        rimDiameter: product.rim_diameter,
-        loadIndex: product.load_index,
-        speedRating: product.speed_rating,
+        sizeType: product.size_type,
+        pattern: product.pattern,
+        productType: product.product_type,
+        hasTube: product.has_tube,
+        specs: product.specs,
         isActive: product.is_active,
         createdAt: product.created_at,
         updatedAt: product.updated_at,
@@ -184,7 +187,7 @@ exports.createProduct = async (req, res, next) => {
   try {
     const {
       categoryId, sku, name, slug, description, price, salePrice,
-      stockQuantity, size, rimDiameter, loadIndex, speedRating,
+      stockQuantity, brand, size, sizeType, pattern, productType, hasTube, specs,
     } = req.body;
 
     if (!sku || !name || !slug || !price) {
@@ -217,15 +220,18 @@ exports.createProduct = async (req, res, next) => {
         price: parsedPrice,
         sale_price: parsedSalePrice,
         stock_quantity: parseInt(stockQuantity) || 0,
+        brand: brand || '',
         size,
-        rim_diameter: rimDiameter ? parseInt(rimDiameter) : null,
-        load_index: loadIndex,
-        speed_rating: speedRating,
+        size_type: sizeType || 'METRIC',
+        pattern: pattern || null,
+        product_type: productType,
+        has_tube: hasTube ?? null,
+        specs: specs || {},
         is_active: true,
       })
       .select(`
         id, sku, name, slug, description, price, sale_price, stock_quantity,
-        size, rim_diameter, load_index, speed_rating, tire_type, is_active, created_at,
+        brand, size, size_type, pattern, product_type, has_tube, specs, is_active, created_at,
         categories(name)
       `)
       .single();
@@ -311,7 +317,7 @@ exports.createProduct = async (req, res, next) => {
       .from('products')
       .select(`
         id, category_id, sku, name, slug, description, price, sale_price, stock_quantity,
-        size, rim_diameter, load_index, speed_rating, tire_type, is_active, created_at,
+        brand, size, size_type, pattern, product_type, has_tube, specs, is_active, created_at,
         categories(name),
         images:product_images(*)
       `)
@@ -334,10 +340,13 @@ exports.createProduct = async (req, res, next) => {
       price: parsedPrice,
       salePrice: parsedSalePrice,
       stockQuantity: productWithImages.stock_quantity,
+      brand: productWithImages.brand,
       size: productWithImages.size,
-      rimDiameter: productWithImages.rim_diameter,
-      loadIndex: productWithImages.load_index,
-      speedRating: productWithImages.speed_rating,
+      sizeType: productWithImages.size_type,
+      pattern: productWithImages.pattern,
+      productType: productWithImages.product_type,
+      hasTube: productWithImages.has_tube,
+      specs: productWithImages.specs,
       isActive: productWithImages.is_active,
       createdAt: productWithImages.created_at,
       category: {
@@ -603,7 +612,7 @@ exports.updateProduct = async (req, res, next) => {
 
     const {
       categoryId, sku, name, slug, description, price, salePrice,
-      stockQuantity, size, rimDiameter, loadIndex, speedRating, isActive,
+      stockQuantity, brand, size, sizeType, pattern, productType, hasTube, specs, isActive,
     } = req.body;
 
     if (!sku || !name || !slug || !price) {
@@ -634,10 +643,13 @@ exports.updateProduct = async (req, res, next) => {
       price: parsedPrice,
       sale_price: parsedSalePrice,
       stock_quantity: parseInt(stockQuantity) || 0,
+      brand: brand || '',
       size,
-      rim_diameter: rimDiameter ? parseInt(rimDiameter) : null,
-      load_index: loadIndex,
-      speed_rating: speedRating,
+      size_type: sizeType || 'METRIC',
+      pattern: pattern || null,
+      product_type: productType,
+      has_tube: hasTube ?? null,
+      specs: specs || {},
       is_active: isActive !== undefined ? isActive : true,
     };
 
@@ -704,10 +716,13 @@ exports.updateProduct = async (req, res, next) => {
       price: updatedProduct.price,
       salePrice: updatedProduct.sale_price,
       stockQuantity: updatedProduct.stock_quantity,
+      brand: updatedProduct.brand,
       size: updatedProduct.size,
-      rimDiameter: updatedProduct.rim_diameter,
-      loadIndex: updatedProduct.load_index,
-      speedRating: updatedProduct.speed_rating,
+      sizeType: updatedProduct.size_type,
+      pattern: updatedProduct.pattern,
+      productType: updatedProduct.product_type,
+      hasTube: updatedProduct.has_tube,
+      specs: updatedProduct.specs,
       isActive: updatedProduct.is_active,
       createdAt: updatedProduct.created_at,
       updatedAt: updatedProduct.updated_at,

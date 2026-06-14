@@ -27,7 +27,7 @@ exports.create = async (req, res, next) => {
   try {
     const {
       categoryId, sku, name, slug, description, price, salePrice,
-      stockQuantity, size, rimDiameter, loadIndex, speedRating,
+      stockQuantity, brand, size, sizeType, pattern, productType, hasTube, specs,
     } = req.body;
 
     if (!sku || !name || !slug || !price) {
@@ -40,8 +40,13 @@ exports.create = async (req, res, next) => {
       price: parseFloat(price),
       salePrice: salePrice ? parseFloat(salePrice) : null,
       stockQuantity: parseInt(stockQuantity) || 0,
-      size, rimDiameter: rimDiameter ? parseInt(rimDiameter) : null,
-      loadIndex, speedRating,
+      brand: brand || '',
+      size: size || '',
+      sizeType: sizeType || 'METRIC',
+      pattern: pattern || null,
+      productType,
+      hasTube: hasTube ?? null,
+      specs: specs || {},
     });
 
     return ApiResponse.created(res, product);
