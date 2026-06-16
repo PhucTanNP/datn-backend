@@ -1,4 +1,5 @@
 const supabase = require('../config/database');
+const cloudinary = require('../config/cloudinary');
 const generateOrderNumber = require('../utils/generateOrderNumber');
 const { getPagination, getPaginationMeta } = require('../utils/pagination');
 
@@ -225,6 +226,22 @@ class OrderService {
     // Restore stock for all items
     for (const item of order.items) {
       await this.updateProductStock(item.product_id, item.quantity);
+    }
+
+    // Xoá ảnh payment proof trên Cloudinary nếu có
+    if (order.payment_proof_url) {
+      try {
+        // URL dạng: .../upload/v12345/drc-payment-proofs/filename.jpg
+        const urlParts = order.payment_proof_url.split('/');
+        const versionIndex = urlParts.findIndex(p => p.startsWith('v') && !isNaN(p.slice(1)));
+        if (versionIndex !== -1) {
+          const publicId = urlParts.slice(versionIndex + 1).join('/').replace(/\.[^.]+$/, '');
+          await cloudinary.uploader.destroy(publicId);
+        }
+      } catch (cloudErr) {
+        // Log lỗi nhưng không blocking việc xoá đơn
+        console.error('Failed to delete Cloudinary image:', cloudErr.message);
+      }
     }
 
     // Delete order items first (cascade)
