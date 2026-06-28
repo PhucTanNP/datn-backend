@@ -163,18 +163,64 @@ class OrderService {
   }
 
   async updateStatus(orderId, status, paymentFields = {}) {
-    const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'];
+    const validStatuses = ['pending', 'confirmed', 'cancelled'];
     if (!validStatuses.includes(status)) {
       throw Object.assign(new Error('Invalid status'), { statusCode: 400 });
     }
 
+    // Lấy thông tin đơn hiện tại để kiểm tra luồng trạng thái
+    const { data: currentOrder, error: fetchErr } = await supabase
+      .from('orders')
+      .select('status')
+      .eq('id', orderId)
+      .single();
+
+    if (fetchErr || !currentOrder) {
+      throw Object.assign(new Error('Order not found'), { statusCode: 404 });
+    }
+
+    const currentStatus = currentOrder.status;
+
+    // State machine: chỉ cho phép chuyển đổi hợp lệ
+    const allowedTransitions = {
+      'pending': ['confirmed', 'cancelled'],
+      'confirmed': ['cancelled'],
+      'cancelled': [], // Không thể chuyển từ cancelled sang trạng thái khác
+    };
+
+    const allowed = allowedTransitions[currentStatus] || [];
+    if (!allowed.includes(status)) {
+      throw Object.assign(
+        new Error(`Cannot change order from "${currentStatus}" to "${status}"`),
+        { statusCode: 400 }
+      );
+    }
+
     const updateData = { status, updated_at: new Date().toISOString() };
 
-    // Nếu có payment_status hoặc is_paid thì cập nhật luôn
-    if (paymentFields.payment_status !== undefined) {
+    // Nếu là cancelled, bắt buộc phải có lý do
+    if (status === 'cancelled') {
+      if (!paymentFields.cancel_reason || !paymentFields.cancel_reason.trim()) {
+        throw Object.assign(new Error('Cancel reason is required'), { statusCode: 400 });
+      }
+      updateData.cancel_reason = paymentFields.cancel_reason.trim();
+      updateData.payment_status = 'failed';
+      updateData.is_paid = false;
+    }
+
+    // Nếu là confirmed, tự động cập nhật payment
+    if (status === 'confirmed') {
+      updateData.payment_status = 'paid';
+      updateData.is_paid = true;
+      updateData.payment_confirmed_at = new Date().toISOString();
+      updateData.payment_confirmed_by = paymentFields.confirmed_by || null;
+    }
+
+    // Nếu có payment_status hoặc is_paid từ bên ngoài thì ghi đè
+    if (paymentFields.payment_status !== undefined && status !== 'cancelled') {
       updateData.payment_status = paymentFields.payment_status;
     }
-    if (paymentFields.is_paid !== undefined) {
+    if (paymentFields.is_paid !== undefined && status !== 'cancelled') {
       updateData.is_paid = paymentFields.is_paid;
     }
 

@@ -189,11 +189,7 @@ class ChatService {
     const map = {
       pending: '⏳ Chờ xác nhận',
       confirmed: '✅ Đã xác nhận',
-      processing: '📦 Đang xử lý',
-      shipped: '🚚 Đang giao',
-      delivered: '🎉 Đã giao',
       cancelled: '❌ Đã hủy',
-      refunded: '💳 Đã hoàn tiền',
     };
     return map[status] || status;
   }

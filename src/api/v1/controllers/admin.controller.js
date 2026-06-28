@@ -36,7 +36,7 @@ exports.getDashboard = async (req, res, next) => {
     const { data: revenueData } = await supabase
       .from('orders')
       .select('total_amount')
-      .in('status', ['confirmed', 'processing', 'shipped', 'delivered']);
+      .in('status', ['confirmed']);
 
     const totalRevenue = revenueData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
@@ -563,46 +563,6 @@ exports.deleteUser = async (req, res, next) => {
     return ApiResponse.success(res, null, 'User deleted successfully');
   } catch (error) {
     logger.error('Delete user failed', error);
-    next(error);
-  }
-};
-
-exports.updateOrderPaymentStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { status, isPaid } = req.body; // status: 'paid', 'unpaid', 'failed', 'pending'
-
-
-    const updateData = {
-      payment_status: status,
-      is_paid: isPaid,
-      updated_at: new Date().toISOString()
-    };
-
-    // If payment is approved (paid), we might want to update the order status as well
-    if (isPaid) {
-      // set order as confirmed when admin marks as paid
-      updateData.is_paid = true;
-      updateData.payment_status = status || 'paid';
-      updateData.payment_confirmed_at = new Date().toISOString();
-      updateData.payment_confirmed_by = req.user?.id || null;
-      if (status === 'paid' || status === 'paid_confirmed') {
-        updateData.status = 'confirmed';
-      }
-    }
-
-    const { data: order, error } = await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return ApiResponse.success(res, order, 'Payment status updated');
-  } catch (error) {
-    logger.error('Update payment status failed', error);
     next(error);
   }
 };

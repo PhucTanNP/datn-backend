@@ -96,7 +96,7 @@ jobs:
               --restart always \
               -p 3001:3001 \
               --network app-network \
-              --env-file /home/ubuntu/app/.env \
+              --env-file /home/ubuntu/apps/datn-backend/.env \
               $IMAGE
 
             echo "Cleanup old images..."

@@ -31,9 +31,6 @@ router.delete('/users/:id', adminController.deleteUser);
 // GET /api/v1/admin/orders
 router.get('/orders', adminController.getOrders);
 
-// PATCH /api/v1/admin/orders/:id/payment
-router.patch('/orders/:id/payment', adminController.updateOrderPaymentStatus);
-
 // PUT /api/v1/admin/orders/:id (Admin update order status)
 router.put('/orders/:id', orderController.updateStatus);
 

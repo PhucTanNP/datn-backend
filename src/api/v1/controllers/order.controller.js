@@ -88,8 +88,13 @@ exports.getAllOrders = async (req, res, next) => {
 
 exports.updateStatus = async (req, res, next) => {
   try {
-    const { status, payment_status, is_paid } = req.body;
-    const order = await orderService.updateStatus(req.params.id, status, { payment_status, is_paid });
+    const { status, payment_status, is_paid, cancel_reason } = req.body;
+    const order = await orderService.updateStatus(req.params.id, status, {
+      payment_status,
+      is_paid,
+      cancel_reason,
+      confirmed_by: req.user?.id,
+    });
     return ApiResponse.success(res, order, 'Order status updated');
   } catch (error) {
     logger.error('Update order status failed', error, { orderId: req.params.id });
