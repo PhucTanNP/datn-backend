@@ -196,14 +196,24 @@ exports.scan = async (req, res, next) => {
 
       const { data: dbProducts } = await supabase
         .from('products')
-        .select('*, images:product_images(*)')
+        .select('id, name, brand, price, sale_price, slug, size, pattern, product_type, stock_quantity, has_tube, images:product_images(url)')
         .eq('size', size)
         .eq('pattern', pattern)
         .eq('is_active', true);
 
       products = (dbProducts || []).map(p => ({
-        ...p,
-        image_url: p.images?.url || (p.images?.[0]?.url) || null,
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        price: p.price,
+        sale_price: p.sale_price,
+        slug: p.slug,
+        size: p.size,
+        pattern: p.pattern,
+        tire_type: p.product_type,
+        stock_quantity: p.stock_quantity,
+        has_tube: p.has_tube,
+        image_url: p.images?.[0]?.url || null,
       }));
 
     } else if (size && !pattern) {
@@ -213,13 +223,23 @@ exports.scan = async (req, res, next) => {
 
       const { data: dbProducts } = await supabase
         .from('products')
-        .select('*, images:product_images(*)')
+        .select('id, name, brand, price, sale_price, slug, size, pattern, product_type, stock_quantity, has_tube, images:product_images(url)')
         .eq('size', size)
         .eq('is_active', true);
 
       products = (dbProducts || []).map(p => ({
-        ...p,
-        image_url: p.images?.url || (p.images?.[0]?.url) || null,
+        id: p.id,
+        name: p.name,
+        brand: p.brand,
+        price: p.price,
+        sale_price: p.sale_price,
+        slug: p.slug,
+        size: p.size,
+        pattern: p.pattern,
+        tire_type: p.product_type,
+        stock_quantity: p.stock_quantity,
+        has_tube: p.has_tube,
+        image_url: p.images?.[0]?.url || null,
       }));
 
       // Query Neo4j tìm xe phù hợp với size này
@@ -257,14 +277,24 @@ exports.scan = async (req, res, next) => {
             if (allSizes.length > 0) {
               const { data: dbProducts } = await supabase
                 .from('products')
-                .select('*, images:product_images(*)')
+                .select('id, name, brand, price, sale_price, slug, size, pattern, product_type, stock_quantity, has_tube, images:product_images(url)')
                 .in('size', allSizes)
                 .eq('pattern', pattern)
                 .eq('is_active', true);
 
               products = (dbProducts || []).map(p => ({
-                ...p,
-                image_url: p.images?.url || (p.images?.[0]?.url) || null,
+                id: p.id,
+                name: p.name,
+                brand: p.brand,
+                price: p.price,
+                sale_price: p.sale_price,
+                slug: p.slug,
+                size: p.size,
+                pattern: p.pattern,
+                tire_type: p.product_type,
+                stock_quantity: p.stock_quantity,
+                has_tube: p.has_tube,
+                image_url: p.images?.[0]?.url || null,
               }));
             }
           }
