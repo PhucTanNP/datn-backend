@@ -10,7 +10,7 @@ const logger = require('../../../utils/logger');
  */
 exports.chat = async (req, res, next) => {
   try {
-    const { message, history } = req.body;
+    const { message, history, mode } = req.body;
     const userId = req.user?.id || 'anonymous';
 
     if (!message || !message.trim()) {
@@ -19,7 +19,7 @@ exports.chat = async (req, res, next) => {
 
     // Thử gọi GraphRag trước
     try {
-      const aiReply = await aiService.chat(message, history || []);
+      const aiReply = await aiService.chat(message, history || [], mode || 'fast');
 
       // GraphRag trả về { result: "..." } — chuẩn hóa thành format chung
       const reply = {

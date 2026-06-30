@@ -29,13 +29,14 @@ class AIService {
    * Gửi tin nhắn chat tới GraphRag
    * @param {string} message - Nội dung tin nhắn
    * @param {Array} history - Lịch sử hội thoại (optional)
+   * @param {string} mode - "fast" (template) hoặc "deep" (Gemini paraphrase)
    * @returns {Promise<{result: string}>}
    */
-  async chat(message, history = []) {
+  async chat(message, history = [], mode = 'fast') {
     try {
       // GraphRag dùng query param ?q=
       const response = await axios.get(`${this.baseUrl}/query`, {
-        params: { q: message },
+        params: { q: message, mode: mode },
         headers: this._headers(),
         timeout: 30000,
       });
