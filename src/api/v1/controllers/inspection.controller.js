@@ -291,6 +291,21 @@ exports.scan = async (req, res, next) => {
       logger.warn('No size nor pattern detected');
     }
 
+    // Lược bỏ ảnh base64 nặng trong response — FE không cần crop_image/ocr_input_image
+    const stripImages = (obj) => {
+      if (!obj || typeof obj !== 'object') return obj;
+      for (const key of Object.keys(obj)) {
+        if (key === 'crop_image' || key === 'ocr_input_image') {
+          delete obj[key];
+        } else if (typeof obj[key] === 'object') {
+          stripImages(obj[key]);
+        }
+      }
+      return obj;
+    };
+    if (merged) stripImages(merged);
+    if (detectResults && detectResults.length) detectResults.forEach(stripImages);
+
     return ApiResponse.success(res, {
       success: !!(size || pattern),
       merged,
