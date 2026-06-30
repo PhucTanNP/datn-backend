@@ -34,12 +34,12 @@ class AIService {
    */
   async chat(message, history = [], mode = 'fast') {
     try {
-      // GraphRag dùng query param ?q=
-      const response = await axios.get(`${this.baseUrl}/query`, {
-        params: { q: message, mode: mode },
-        headers: this._headers(),
-        timeout: 30000,
-      });
+      // Gọi POST /api/v1/chat — có history
+      const response = await axios.post(
+        `${this.baseUrl}/api/v1/chat`,
+        { message, history, mode },
+        { headers: this._headers(), timeout: 30000 }
+      );
 
       return response.data;
     } catch (error) {
@@ -80,6 +80,62 @@ class AIService {
       headers: this._headers(),
       timeout: 5000,
     });
+    return response.data;
+  }
+
+  /**
+   * Recommend lốp theo tên xe — query Neo4j lấy lốp trước + sau, tất cả brand × pattern
+   * @param {string} vehicleName - Tên xe (vd: "Vario 125 Click 125i")
+   * @returns {Promise<{success: boolean, vehicle_name: string, front_size: string, rear_size: string, tires: Array}>}
+   */
+  async recommendByVehicle(vehicleName) {
+    const response = await axios.post(
+      `${this.baseUrl}/api/v1/detect/recommend`,
+      { vehicle_name: vehicleName },
+      { headers: this._headers(), timeout: 30000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * Tìm xe theo size lốp — dùng để filter dropdown sau khi detect
+   * @param {string} size - Size lốp đã detect (vd: "80/90-14")
+   * @returns {Promise<{success: boolean, vehicles: Array<{name: string}>}>}
+   */
+  async getVehiclesBySize(size) {
+    const response = await axios.post(
+      `${this.baseUrl}/api/v1/detect/vehicles-by-size`,
+      { size },
+      { headers: this._headers(), timeout: 15000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * CASE 3: Tìm xe theo pattern — dùng khi chỉ detect được pattern
+   * @param {string} pattern - Mã gai (vd: "119", "D354")
+   * @returns {Promise<{success: boolean, vehicles: Array<{name: string}>}>}
+   */
+  async getVehiclesByPattern(pattern) {
+    const response = await axios.post(
+      `${this.baseUrl}/api/v1/detect/vehicles-by-pattern`,
+      { pattern },
+      { headers: this._headers(), timeout: 15000 }
+    );
+    return response.data;
+  }
+
+  /**
+   * CASE 3: Lấy size lốp trước + sau của xe
+   * @param {string} vehicleName - Tên xe
+   * @returns {Promise<{success: boolean, front_size: string|null, rear_size: string|null}>}
+   */
+  async getSizesByVehicle(vehicleName) {
+    const response = await axios.post(
+      `${this.baseUrl}/api/v1/detect/sizes-by-vehicle`,
+      { vehicle_name: vehicleName },
+      { headers: this._headers(), timeout: 15000 }
+    );
     return response.data;
   }
 

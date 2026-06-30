@@ -94,3 +94,203 @@ exports.getHistory = async (req, res, next) => {
     next(error);
   }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SCAN (2 mặt 1 lốp → merge detect → chọn xe → recommend tất cả mã gai)
+//  ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Merge kết quả detect từ 2 mặt của cùng 1 lốp.
+ * Ưu tiên field có ocr_confidence cao hơn.
+ */
+function mergeDetectResults(results) {
+  const sides = results.filter(r => r && r.success !== false);
+  if (sides.length === 0) return null;
+  if (sides.length === 1) return sides[0];
+
+  // Merge: ưu tiên giá trị có confidence cao hơn
+  const merged = { ...sides[0] };
+  for (let i = 1; i < sides.length; i++) {
+    const s = sides[i];
+    for (const field of ['brand', 'size', 'pattern']) {
+      const curConf = merged[`${field}_ocr`]?.ocr_confidence || 0;
+      const newConf = s[`${field}_ocr`]?.ocr_confidence || 0;
+      if (newConf > curConf && s[field]) {
+        merged[field] = s[field];
+        merged[`${field}_raw`] = s[`${field}_raw`];
+        merged[`${field}_ocr`] = s[`${field}_ocr`];
+      }
+    }
+    // Cộng dồn detections_count
+    merged.detections_count = (merged.detections_count || 0) + (s.detections_count || 0);
+    // Gộp steps
+    if (s.steps) {
+      merged.steps = [...(merged.steps || []), ...s.steps.map(st => ({ ...st, side: i + 1 }))];
+    }
+  }
+  // Confidence tổng = trung bình cộng
+  const confs = sides.map(s => s.ocr_confidence || 0).filter(c => c > 0);
+  merged.ocr_confidence = confs.length > 0
+    ? confs.reduce((a, b) => a + b, 0) / confs.length
+    : 0;
+
+  merged.sides_count = sides.length;
+  return merged;
+}
+
+exports.scan = async (req, res, next) => {
+  try {
+    const files = req.files;
+    if (!files || (!files.sideA && !files.sideB)) {
+      return ApiResponse.error(res, 'Cần ít nhất 1 ảnh mặt lốp (sideA)', 400);
+    }
+
+    const sideAFiles = files.sideA || [];
+    const sideBFiles = files.sideB || [];
+    const imageUrls = [];
+
+    if (sideAFiles[0]) imageUrls.push({ side: 'A', url: sideAFiles[0].path });
+    if (sideBFiles[0]) imageUrls.push({ side: 'B', url: sideBFiles[0].path });
+
+    // Bước 1: Detect từng mặt qua GraphRag
+    const detectResults = [];
+    for (const { side, url } of imageUrls) {
+      try {
+        const raw = await aiService.inspectTire(url);
+        detectResults.push({ side, ...(raw.data || raw), success: true });
+      } catch (err) {
+        logger.warn(`Scan detect side ${side} failed`, { error: err.message, tag: 'scan' });
+        detectResults.push({ side, success: false, error: err.message });
+      }
+    }
+
+    // Bước 2: Merge kết quả detect
+    const merged = mergeDetectResults(detectResults);
+    if (!merged) {
+      return ApiResponse.success(res, {
+        success: false,
+        error: 'Không thể detect thông số từ ảnh',
+        sides: detectResults,
+      });
+    }
+
+    const size = merged.size || null;
+    let pattern = merged.pattern || null;
+    // Chuẩn hoá pattern: tự động thêm tiền tố D nếu thiếu
+    if (pattern && !/^D/i.test(pattern)) {
+      pattern = 'D' + pattern;
+      logger.info(`Pattern normalized: thêm D → ${pattern}`);
+    }
+
+    // Bước 3: Route theo 3 case
+    let products = [];
+    let vehicles = null;
+    let caseType = null; // 'size_pattern' | 'size_only' | 'pattern_only' | 'none'
+    let frontSize = null;
+    let rearSize = null;
+
+    if (size && pattern) {
+      // ═══ CASE 1: Có size + pattern → query Supabase trực tiếp, ko cần xe ═══
+      caseType = 'size_pattern';
+      logger.info(`CASE 1: size=${size}, pattern=${pattern} — query Supabase`);
+
+      const { data: dbProducts } = await supabase
+        .from('products')
+        .select('*, images:product_images(*)')
+        .eq('size', size)
+        .eq('pattern', pattern)
+        .eq('is_active', true);
+
+      products = (dbProducts || []).map(p => ({
+        ...p,
+        image_url: p.images?.url || (p.images?.[0]?.url) || null,
+      }));
+
+    } else if (size && !pattern) {
+      // ═══ CASE 2: Chỉ có size → query Supabase tất cả pattern + vehicles từ Neo4j ═══
+      caseType = 'size_only';
+      logger.info(`CASE 2: size=${size} — query Supabase & Neo4j vehicles`);
+
+      const { data: dbProducts } = await supabase
+        .from('products')
+        .select('*, images:product_images(*)')
+        .eq('size', size)
+        .eq('is_active', true);
+
+      products = (dbProducts || []).map(p => ({
+        ...p,
+        image_url: p.images?.url || (p.images?.[0]?.url) || null,
+      }));
+
+      // Query Neo4j tìm xe phù hợp với size này
+      try {
+        const vehRes = await aiService.getVehiclesBySize(size);
+        vehicles = vehRes.vehicles || [];
+      } catch (vehErr) {
+        logger.warn('Get vehicles by size failed (CASE 2)', { error: vehErr.message, tag: 'scan' });
+        vehicles = [];
+      }
+
+    } else if (!size && pattern) {
+      // ═══ CASE 3: Chỉ có pattern → tìm xe từ Neo4j ═══
+      caseType = 'pattern_only';
+      logger.info(`CASE 3: pattern=${pattern} — tìm xe từ Neo4j`);
+
+      try {
+        const vehRes = await aiService.getVehiclesByPattern(pattern);
+        vehicles = vehRes.vehicles || [];
+      } catch (vehErr) {
+        logger.warn('Get vehicles by pattern failed', { error: vehErr.message, tag: 'scan' });
+        vehicles = [];
+      }
+
+      // Nếu đã có vehicle_name trong request → lấy sizes + query Supabase
+      const vehicleName = req.body.vehicle_name || null;
+      if (vehicleName && vehicles.length > 0) {
+        try {
+          const sizesRes = await aiService.getSizesByVehicle(vehicleName);
+          if (sizesRes.success) {
+            frontSize = sizesRes.front_size;
+            rearSize = sizesRes.rear_size;
+            const allSizes = [frontSize, rearSize].filter(Boolean);
+
+            if (allSizes.length > 0) {
+              const { data: dbProducts } = await supabase
+                .from('products')
+                .select('*, images:product_images(*)')
+                .in('size', allSizes)
+                .eq('pattern', pattern)
+                .eq('is_active', true);
+
+              products = (dbProducts || []).map(p => ({
+                ...p,
+                image_url: p.images?.url || (p.images?.[0]?.url) || null,
+              }));
+            }
+          }
+        } catch (sizesErr) {
+          logger.warn('Get sizes by vehicle failed', { error: sizesErr.message, tag: 'scan' });
+        }
+      }
+
+    } else {
+      // ═══ Không có size, không có pattern ═══
+      caseType = 'none';
+      logger.warn('No size nor pattern detected');
+    }
+
+    return ApiResponse.success(res, {
+      success: !!(size || pattern),
+      merged,
+      sides: detectResults,
+      case_type: caseType,
+      products,
+      vehicles,
+      front_size: frontSize,
+      rear_size: rearSize,
+    }, 'Scan hoàn tất');
+  } catch (error) {
+    logger.error('Scan failed', error, { tag: 'scan' });
+    next(error);
+  }
+};

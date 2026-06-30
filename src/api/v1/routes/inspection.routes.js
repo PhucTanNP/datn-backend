@@ -11,6 +11,16 @@ router.post('/',
   inspectionController.inspect
 );
 
+// POST /api/v1/inspect/scan — 2 mặt 1 lốp → merge → recommend
+router.post('/scan',
+  authMiddleware,
+  uploadInspection.fields([
+    { name: 'sideA', maxCount: 1 },
+    { name: 'sideB', maxCount: 1 },
+  ]),
+  inspectionController.scan
+);
+
 // GET /api/v1/inspect/history
 router.get('/history', authMiddleware, inspectionController.getHistory);
 

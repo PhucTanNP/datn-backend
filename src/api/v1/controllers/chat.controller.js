@@ -17,6 +17,14 @@ exports.chat = async (req, res, next) => {
       return ApiResponse.error(res, 'Message is required', 400);
     }
 
+    // Log history nếu có
+    if (history && history.length > 0) {
+      logger.info(`Chat with ${history.length} history messages`, { tag: 'chat' });
+      history.slice(-3).forEach((h, i) => {
+        logger.debug(`  history[${i}] ${h.role}: ${(h.text || '').slice(0, 60)}`, { tag: 'chat' });
+      });
+    }
+
     // Thử gọi GraphRag trước
     try {
       const aiReply = await aiService.chat(message, history || [], mode || 'fast');
