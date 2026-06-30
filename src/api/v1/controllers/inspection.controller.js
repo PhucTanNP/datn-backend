@@ -185,6 +185,7 @@ exports.scan = async (req, res, next) => {
     // Bước 3: Route theo 3 case
     let products = [];
     let vehicles = null;
+    let recommend = null;
     let caseType = null; // 'size_pattern' | 'size_only' | 'pattern_only' | 'none'
     let frontSize = null;
     let rearSize = null;
@@ -217,89 +218,70 @@ exports.scan = async (req, res, next) => {
       }));
 
     } else if (size && !pattern) {
-      // ═══ CASE 2: Chỉ có size → query Supabase tất cả pattern + vehicles từ Neo4j ═══
+      // ═══ CASE 2: Chỉ có size ═══
       caseType = 'size_only';
-      logger.info(`CASE 2: size=${size} — query Supabase & Neo4j vehicles`);
+      const vehNameCase2 = req.body.vehicle_name || null;
+      logger.info(`CASE 2: size=${size} vehicle_name=${vehNameCase2 || '(none)'}`);
 
-      const { data: dbProducts } = await supabase
-        .from('products')
-        .select('id, name, brand, price, sale_price, slug, size, pattern, product_type, stock_quantity, has_tube, images:product_images(url)')
-        .eq('size', size)
-        .eq('is_active', true);
+      if (vehNameCase2) {
+        // Có vehicle_name → recommend từ GraphRag
+        try {
+          const recRes = await aiService.recommendByVehicle(vehNameCase2);
+          recommend = recRes;
+          frontSize = recRes.front_size || null;
+          rearSize = recRes.rear_size || null;
+        } catch (recErr) {
+          logger.warn('Recommend by vehicle failed (CASE 2)', { error: recErr.message, tag: 'scan' });
+        }
+      } else {
+        // Không có vehicle_name → query Supabase tất cả pattern + vehicles từ Neo4j
+        const { data: dbProducts } = await supabase
+          .from('products')
+          .select('id, name, brand, price, sale_price, slug, size, pattern, product_type, stock_quantity, has_tube, images:product_images(url)')
+          .eq('size', size)
+          .eq('is_active', true);
 
-      products = (dbProducts || []).map(p => ({
-        id: p.id,
-        name: p.name,
-        brand: p.brand,
-        price: p.price,
-        sale_price: p.sale_price,
-        slug: p.slug,
-        size: p.size,
-        pattern: p.pattern,
-        tire_type: p.product_type,
-        stock_quantity: p.stock_quantity,
-        has_tube: p.has_tube,
-        image_url: p.images?.[0]?.url || null,
-      }));
+        products = (dbProducts || []).map(p => ({
+          id: p.id, name: p.name, brand: p.brand,
+          price: p.price, sale_price: p.sale_price, slug: p.slug,
+          size: p.size, pattern: p.pattern, tire_type: p.product_type,
+          stock_quantity: p.stock_quantity, has_tube: p.has_tube,
+          image_url: p.images?.[0]?.url || null,
+        }));
 
-      // Query Neo4j tìm xe phù hợp với size này
-      try {
-        const vehRes = await aiService.getVehiclesBySize(size);
-        vehicles = vehRes.vehicles || [];
-      } catch (vehErr) {
-        logger.warn('Get vehicles by size failed (CASE 2)', { error: vehErr.message, tag: 'scan' });
-        vehicles = [];
+        try {
+          const vehRes = await aiService.getVehiclesBySize(size);
+          vehicles = vehRes.vehicles || [];
+        } catch (vehErr) {
+          logger.warn('Get vehicles by size failed (CASE 2)', { error: vehErr.message, tag: 'scan' });
+          vehicles = [];
+        }
       }
 
     } else if (!size && pattern) {
-      // ═══ CASE 3: Chỉ có pattern → tìm xe từ Neo4j ═══
+      // ═══ CASE 3: Chỉ có pattern ═══
       caseType = 'pattern_only';
-      logger.info(`CASE 3: pattern=${pattern} — tìm xe từ Neo4j`);
+      const vehNameCase3 = req.body.vehicle_name || null;
+      logger.info(`CASE 3: pattern=${pattern} vehicle_name=${vehNameCase3 || '(none)'}`);
 
-      try {
-        const vehRes = await aiService.getVehiclesByPattern(pattern);
-        vehicles = vehRes.vehicles || [];
-      } catch (vehErr) {
-        logger.warn('Get vehicles by pattern failed', { error: vehErr.message, tag: 'scan' });
-        vehicles = [];
-      }
-
-      // Nếu đã có vehicle_name trong request → lấy sizes + query Supabase
-      const vehicleName = req.body.vehicle_name || null;
-      if (vehicleName && vehicles.length > 0) {
+      if (vehNameCase3) {
+        // Có vehicle_name → recommend từ GraphRag
         try {
-          const sizesRes = await aiService.getSizesByVehicle(vehicleName);
-          if (sizesRes.success) {
-            frontSize = sizesRes.front_size;
-            rearSize = sizesRes.rear_size;
-            const allSizes = [frontSize, rearSize].filter(Boolean);
-
-            if (allSizes.length > 0) {
-              const { data: dbProducts } = await supabase
-                .from('products')
-                .select('id, name, brand, price, sale_price, slug, size, pattern, product_type, stock_quantity, has_tube, images:product_images(url)')
-                .in('size', allSizes)
-                .eq('pattern', pattern)
-                .eq('is_active', true);
-
-              products = (dbProducts || []).map(p => ({
-                id: p.id,
-                name: p.name,
-                brand: p.brand,
-                price: p.price,
-                sale_price: p.sale_price,
-                slug: p.slug,
-                size: p.size,
-                pattern: p.pattern,
-                tire_type: p.product_type,
-                stock_quantity: p.stock_quantity,
-                has_tube: p.has_tube,
-                image_url: p.images?.[0]?.url || null,
-              }));
-            }
-          }
-        } catch (sizesErr) {
-          logger.warn('Get sizes by vehicle failed', { error: sizesErr.message, tag: 'scan' });
+          const recRes = await aiService.recommendByVehicle(vehNameCase3);
+          recommend = recRes;
+          frontSize = recRes.front_size || null;
+          rearSize = recRes.rear_size || null;
+        } catch (recErr) {
+          logger.warn('Recommend by vehicle failed (CASE 3)', { error: recErr.message, tag: 'scan' });
+        }
+      } else {
+        // Không có vehicle_name → tìm xe từ Neo4j
+        try {
+          const vehRes = await aiService.getVehiclesByPattern(pattern);
+          vehicles = vehRes.vehicles || [];
+        } catch (vehErr) {
+          logger.warn('Get vehicles by pattern failed', { error: vehErr.message, tag: 'scan' });
+          vehicles = [];
         }
       }
 
@@ -316,6 +298,7 @@ exports.scan = async (req, res, next) => {
       case_type: caseType,
       products,
       vehicles,
+      recommend,
       front_size: frontSize,
       rear_size: rearSize,
     }, 'Scan hoàn tất');
